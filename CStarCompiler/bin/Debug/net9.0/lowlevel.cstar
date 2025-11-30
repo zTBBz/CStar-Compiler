@@ -1,0 +1,21 @@
+module LowLevel;
+
+public void UnsafeMath()
+{
+    // Массив структур
+    int[] numbers = Array.Create<int>(10);
+    
+    // Указатель на массив
+    int* ptr = &numbers[0];
+    
+    // Арифметика указателей и разыменование
+    // *ptr = 5;
+    var value = *ptr;
+    
+    // Сложное выражение с отрицанием и разыменованием
+    var result = value * -10 + *ptr;
+    
+    // Дженерик массив
+    Vector<float>[] vectors = Array.Create<Vector<float>>(5);
+    vectors[0].x = 1,5;
+}

@@ -1,0 +1,17 @@
+module MetaProgramming;
+
+@CLibrary use MathH;
+
+public void Calculate()
+{
+    const var intSize = @SizeOf(int);
+
+    // Вставка чистого Си кода
+    CCode 
+    {
+        printf("C code inside CStar! Size: %d\n", intSize);
+        // Тут можно использовать ++
+        int k = 0;
+        //k++;
+    }
+}

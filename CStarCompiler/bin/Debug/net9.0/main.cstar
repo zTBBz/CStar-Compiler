@@ -1,0 +1,25 @@
+module HelloWorld;
+
+// Импорт стандартной библиотеки (условно)
+use System.Console;
+
+public void Main()
+{
+    // Неявная типизация
+    var greeting = "Hello CStar";
+    var count = 10;
+
+    // Call generic
+    PrintRepeatedly(greeting, count);
+}
+
+void PrintRepeatedly<T>(T message, int times)
+{
+    var i = 0;
+    
+    if (i < times) 
+    {
+        Console.WriteLine(message);
+        i = i + 1;
+    }
+}

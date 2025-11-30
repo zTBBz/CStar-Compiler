@@ -1,0 +1,9 @@
+namespace CStarCompiler.Parsing.Nodes.Modules;
+
+public class UseNode : AstNode
+{
+    public string ModuleName { get; set; }
+    public bool IsPublic { get; set; }
+    public bool IsGlobal { get; set; }
+    public bool IsCLibrary { get; set; } // @CLibrary
+}

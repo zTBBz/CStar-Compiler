@@ -1,0 +1,31 @@
+module Collections;
+
+public struct Vector<T> 
+{
+    T x;
+    T y;
+    T z;
+
+    // Статический "конструктор"
+    public Vector<T> Create(T x, T y, T z)
+    {
+        // Создание экземпляра на стеке
+        var v = Vector<T>;
+        v.x = x;
+        v.y = y;
+        v.z = z;
+        return v;
+    }
+}
+
+public void TestVectors()
+{
+    // Явное указание типов
+    Vector<int> v1 = Vector.Create<int>(1, 2, 3);
+    
+    // Работа с Heap (условный класс)
+    var heapV = Heap.Create<Vector<int>>(10, 20, 30);
+    
+    // Вызов метода уничтожения (если есть контракт Destroy)
+    heapV.Destroy();
+}
