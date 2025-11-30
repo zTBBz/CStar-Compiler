@@ -1,7 +1,7 @@
 namespace CStarCompiler.Parsing.Nodes;
 
-public sealed class TypeNode(string type, List<TypeNode>? generics = null) : ExpressionNode
+public sealed class TypeNode(string name, List<TypeNode>? generics = null) : ExpressionNode
 {
-    public readonly string Type = type;
+    public readonly string Name = name;
     public List<TypeNode>? Generics = generics;
 }

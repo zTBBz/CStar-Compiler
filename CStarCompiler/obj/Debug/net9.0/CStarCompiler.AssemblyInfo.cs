@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CStarCompiler")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+51ca6d12559a3841638e747b77db2256c608b6fe")]
 [assembly: System.Reflection.AssemblyProductAttribute("CStarCompiler")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CStarCompiler")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
