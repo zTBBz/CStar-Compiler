@@ -9,6 +9,7 @@ var lexer = new Lexer();
 var parser = new Parser();
 var generator = new CodeGenerator();
 var writer = new ProjectWriter();
+var dublicateAnalyzer = new DublicateAnalyzer();
 
 foreach (var file in files)
 {
@@ -25,11 +26,9 @@ foreach (var file in files)
 
     var ast = parser.Parse(tokens, file);
     
-    if (ast == null)
-    {
-        Console.WriteLine("Parsing failed.");
-        continue;
-    }
+    if (ast == null) continue;
+    
+    if (!dublicateAnalyzer.Analyze(ast)) continue;
 
     var unit = generator.GenerateUnit(ast);
 

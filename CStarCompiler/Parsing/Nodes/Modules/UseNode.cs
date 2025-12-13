@@ -1,3 +1,5 @@
+using CStarCompiler.Parsing.Nodes.Base;
+
 namespace CStarCompiler.Parsing.Nodes.Modules;
 
 public class UseNode : AstNode

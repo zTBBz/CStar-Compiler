@@ -17,6 +17,9 @@ public enum TokenType : byte
     Struct,
     Contract,
     
+    This,
+    Ref,
+    
     Use,
     Public,
     Internal,

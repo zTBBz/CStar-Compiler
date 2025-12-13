@@ -1,3 +1,5 @@
+using CStarCompiler.Parsing.Nodes.Base;
+
 namespace CStarCompiler.Parsing.Nodes;
 
 public sealed class BinaryExpressionNode(ExpressionNode left, OperatorType operatorType, ExpressionNode right) : ExpressionNode

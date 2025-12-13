@@ -1,4 +1,5 @@
 using CStarCompiler.Parsing.Nodes;
+using CStarCompiler.Parsing.Nodes.Base;
 
 namespace CStarCompiler;
 

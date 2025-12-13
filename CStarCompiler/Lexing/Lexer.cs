@@ -21,6 +21,9 @@ public sealed class Lexer
         "struct" => TokenType.Struct,
         "contract" => TokenType.Contract,
         
+        "ref" => TokenType.Ref,
+        "this" => TokenType.This,
+        
         "return" => TokenType.Return,
         "if" => TokenType.If,
         "else" => TokenType.Else,

@@ -1,20 +1,27 @@
+using CStarCompiler.Parsing.Nodes.Base;
+
 namespace CStarCompiler.Parsing.Nodes;
 
-public sealed class TypeNode(string name, List<TypeNode>? generics = null, List<PostfixModifierType>? postfixModifiers = null) : ExpressionNode
+public sealed class TypeNode(string name, List<StackableModifierType>? stackableModifiers = null) : ExpressionNode
 {
     public readonly string Name = name;
-    public List<TypeNode>? Generics = generics;
 
-    public bool IsRef = false;
-    public bool IsOut = false;
-    public bool IsConst = false;
-    public bool IsNoWrites = false;
+    public SingleModifiers SingleModifiers = SingleModifiers.None;
     
-    // postfix modifiers can stacks
-    public List<PostfixModifierType>? PostfixModifiers = postfixModifiers;
+    public readonly List<StackableModifierType>? StackableModifiers = stackableModifiers;
 }
 
-public enum PostfixModifierType
+[Flags]
+public enum SingleModifiers
+{
+    None,
+    Ref,
+    Out,
+    Const,
+    NoWrite
+}
+
+public enum StackableModifierType
 {
     Array,
     Pointer,

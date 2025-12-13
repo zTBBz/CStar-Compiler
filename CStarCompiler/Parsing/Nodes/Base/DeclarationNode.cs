@@ -1,4 +1,4 @@
-namespace CStarCompiler.Parsing.Nodes;
+namespace CStarCompiler.Parsing.Nodes.Base;
 
 public abstract class DeclarationNode : AstNode 
 {

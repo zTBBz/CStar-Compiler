@@ -1,6 +1,9 @@
 using System.Text;
 using CStarCompiler.Parsing.Nodes;
+using CStarCompiler.Parsing.Nodes.Base;
+using CStarCompiler.Parsing.Nodes.Declarations;
 using CStarCompiler.Parsing.Nodes.Modules;
+using CStarCompiler.Parsing.Nodes.This;
 
 namespace CStarCompiler.CodeGeneration;
 
@@ -44,7 +47,7 @@ public sealed class CodeGenerator
         // functions implementations
         GenerateImplementations(module);
 
-        return new(_currentModule, _sbProject.ToString());
+        return new(_sbProject.ToString());
     }
 
     private void GenerateImports(ModuleNode module)
@@ -66,7 +69,7 @@ public sealed class CodeGenerator
     private void GenerateAllTypedefs(ModuleNode module)
     {
         // usual typedefs
-        foreach (var decl in module.Declarations.OfType<StructDeclarationNode>().Where(s => s.GenericParams.Count == 0))
+        foreach (var decl in module.Declarations.OfType<StructDeclarationNode>())
         {
             var cName = GetCTypeName(decl.Name);
             Emit($"typedef struct {cName} {cName};");
@@ -76,7 +79,7 @@ public sealed class CodeGenerator
     private void GenerateStructDefinitions(ModuleNode module)
     {
         // usual structs definitions
-        foreach (var decl in module.Declarations.OfType<StructDeclarationNode>().Where(s => s.GenericParams.Count == 0))
+        foreach (var decl in module.Declarations.OfType<StructDeclarationNode>())
             GenStruct(decl, overrideName: null);
     }
 
@@ -87,14 +90,14 @@ public sealed class CodeGenerator
     private void GenerateFunctionGroup(ModuleNode module, bool isPrototype)
     {
         // global functions
-        foreach (var decl in module.Declarations.OfType<FunctionDeclarationNode>().Where(f => f.GenericParameters == null || f.GenericParameters.Count == 0))
+        foreach (var decl in module.Declarations.OfType<FunctionDeclarationNode>())
         {
             if (isPrototype) GenFunctionSignature(decl, null, true);
             else GenFunctionBody(decl, null);
         }
         
         // usual 'this' functions
-        foreach (var structDecl in module.Declarations.OfType<StructDeclarationNode>().Where(s => s.GenericParams.Count == 0))
+        foreach (var structDecl in module.Declarations.OfType<StructDeclarationNode>())
         {
             foreach (var method in structDecl.Members.OfType<FunctionDeclarationNode>())
             {
@@ -127,6 +130,12 @@ public sealed class CodeGenerator
         var retType = MapType(node.ReturnType);
         
         EmitNoNewLine($"{retType} {name}(");
+
+        if (node.ThisParameter != null) // todo: make get this type from analyzers
+        {
+            Append("TODO this");
+            if (node.Parameters.Count > 0) Append(", ");
+        }
         
         for (var i = 0; i < node.Parameters.Count; i++)
         {
@@ -279,6 +288,10 @@ public sealed class CodeGenerator
                 GenExpression(m.Object);
                 Append($".{m.MemberName}");
                 break;
+            
+            case ThisNode _:
+                Append("this");
+                break;
 
             case IndexExpressionNode idx:
                 GenExpression(idx.Object);
@@ -289,6 +302,13 @@ public sealed class CodeGenerator
             
             case TypeNode t:
                 Append(MapType(t));
+                break;
+            
+            case TypeCastNode t:
+                Append("(");
+                GenExpression(t.To);
+                Append(")");
+                GenExpression(t.From);
                 break;
         }
     }
@@ -339,33 +359,33 @@ public sealed class CodeGenerator
     {
         var sb = new StringBuilder();
         
-        if (type.IsConst) sb.Append("const ");
+        if (type.SingleModifiers.HasFlag(SingleModifiers.Const)) sb.Append("const ");
         // todo: add more modifiers
         
         return sb.ToString();
     }
     
-    // modifiers that writes after type (ref, pointers, arrays and etc.)
+    // modifiers that writes after type (ref, pointers, arrays etc.)
     private static string GetPostfixModifiers(TypeNode type)
     {
         var sb = new StringBuilder();
 
-        if (type.PostfixModifiers == null) return string.Empty;
+        if (type.StackableModifiers == null) return string.Empty;
         
-        foreach (var postfix in type.PostfixModifiers)
+        foreach (var postfix in type.StackableModifiers)
         {
             switch (postfix)
             {
-                case PostfixModifierType.Array:
+                case StackableModifierType.Array:
                     throw new NotImplementedException();
                     break;
-                case PostfixModifierType.Pointer:
+                case StackableModifierType.Pointer:
                     sb.Append('*');
                     break;
             }
         }
         
-        if (type.IsRef) sb.Append('*');
+        if (type.SingleModifiers.HasFlag(SingleModifiers.Ref)) sb.Append('*');
 
         return sb.ToString();
     }

@@ -1,4 +1,6 @@
-namespace CStarCompiler.Parsing.Nodes;
+using CStarCompiler.Parsing.Nodes.Base;
+
+namespace CStarCompiler.Parsing.Nodes.Declarations;
 
 public sealed class FieldDeclarationNode(TypeNode type, string name, ExpressionNode? initializer = null) : DeclarationNode
 {

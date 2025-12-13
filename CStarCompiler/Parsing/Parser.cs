@@ -1,6 +1,9 @@
 using CStarCompiler.Lexing;
 using CStarCompiler.Parsing.Nodes;
+using CStarCompiler.Parsing.Nodes.Base;
+using CStarCompiler.Parsing.Nodes.Declarations;
 using CStarCompiler.Parsing.Nodes.Modules;
+using CStarCompiler.Parsing.Nodes.This;
 
 namespace CStarCompiler.Parsing;
 
@@ -50,90 +53,36 @@ public sealed class Parser
 
         return _hadError ? null : module;
     }
-
-    // --- Generics Parsing (New Implementation) ---
-
-    // Parses definition: <T, U = Default>
-    // Used in: struct, function, contract declarations
-    private List<string> ParseGenericParametersDeclaration()
-    {
-        var paramsList = new List<string>();
-        
-        if (!Match(TokenType.Less)) return paramsList;
-
-        do
-        {
-            var name = Consume(TokenType.Identifier, "Expect generic parameter name.").Value;
-            
-            // Support for default values: <T = Self>
-            if (Match(TokenType.Assign))
-            {
-                // We consume the default type but currently just store the name in the simple list.
-                // In a full AST, you'd store a GenericParamNode with Name and DefaultType.
-                ParseType(); 
-            }
-            
-            paramsList.Add(name);
-        } while (Match(TokenType.Comma));
-
-        Consume(TokenType.Greater, "Expect '>' after generic parameters.");
-        return paramsList;
-    }
-
-    // Parses usage: <int, Vector<float>>
-    // Used in: Type parsing, Function calls
-    private List<TypeNode> ParseGenericArguments()
-    {
-        var args = new List<TypeNode>();
-
-        if (!Match(TokenType.Less)) return args;
-
-        do
-        {
-            // for generic arguments, we don't allow postfix modifiers
-            args.Add(ParseType(false)); 
-        } while (Match(TokenType.Comma));
-
-        Consume(TokenType.Greater, "Expect '>' after generic arguments.");
-        return args;
-    }
-
-    // Parses constraints: where T == Create && @SizeOf(T) > 8
-    private List<ExpressionNode> ParseGenericConstraints()
-    {
-        var constraints = new List<ExpressionNode>();
-
-        if (Match(TokenType.Where))
-        {
-            // In CStar constraints are boolean expressions evaluated at compile time.
-            // We parse expressions separated by commas or just one big boolean expression?
-            // Docs say: "compile-time bool expression". Usually one big expression or comma separated list.
-            // Assuming comma separated or simple logic implies we stop at the start of body '{' or ';' or '=>'
-            
-            // Allow parsing multiple expressions if comma separated, though usually it's one boolean chain.
-            do
-            {
-                 constraints.Add(ParseExpression());
-            } while (Match(TokenType.Comma));
-        }
-
-        return constraints;
-    }
     
-    private TypeNode ParseType(bool allowPostfixModifiers = true)
+    private TypeNode ParseType(bool allowStackableModifiers = true, bool allowSingleModifiers = true)
     {
+        var singleModifiers = allowSingleModifiers ? ParseTypeSingleModifiers() : SingleModifiers.None;
+
         // base type name (identifier or primitive)
         var typeName = ConsumeType().Value;
-        List<TypeNode>? generics = null;
-
-        // generic Arguments: <int, T>
-        // only check for generics if valid lookahead confirms it's not a less-than operator (unlikely here but safe)
-        if (Check(TokenType.Less) && IsGenericLookahead(_current)) generics = ParseGenericArguments();
-
+        
         // if modifiers are forbidden (e.g. inside specific expression context), return raw type
-        if (!allowPostfixModifiers) return new(typeName, generics);
+        if (!allowStackableModifiers) return new(typeName) { SingleModifiers = singleModifiers };
 
-        var postfixModifiers = new List<PostfixModifierType>();
+        var stackableModifiers = ParseTypeStackableModifiers();
+
+        return new(typeName, stackableModifiers) { SingleModifiers = singleModifiers };
+    }
+
+    private SingleModifiers ParseTypeSingleModifiers()
+    {
+        SingleModifiers modifiers = new();
+        
+        if (Match(TokenType.Ref)) modifiers |= SingleModifiers.Ref;
+        if (Match(TokenType.Const)) modifiers |= SingleModifiers.Const;
+        // todo: add more modifiers
+
+        return modifiers;
+    }
+
+    private List<StackableModifierType> ParseTypeStackableModifiers()
+    {
+        var postfixModifiers = new List<StackableModifierType>();
 
         // postfix modifiers: [], *
         while (true)
@@ -141,16 +90,16 @@ public sealed class Parser
             if (Match(TokenType.OpenBracket))
             {
                 Consume(TokenType.CloseBracket, "Expect ']' for array.");
-                postfixModifiers.Add(PostfixModifierType.Array);
+                postfixModifiers.Add(StackableModifierType.Array);
             }
             else if (Match(TokenType.Star))
-                postfixModifiers.Add(PostfixModifierType.Pointer);
+                postfixModifiers.Add(StackableModifierType.Pointer);
             else break;
         }
 
-        return new(typeName, generics, postfixModifiers);
+        return postfixModifiers;
     }
-    
+
     private DeclarationNode ParseDeclaration()
     {
         bool isPublic = false, isInternal = false;
@@ -172,10 +121,8 @@ public sealed class Parser
         var name = Consume(TokenType.Identifier, "Expect name.").Value;
 
         // Function Declaration: Type Name<T>(...) or Type Name(...)
-        if (Check(TokenType.Less) || Check(TokenType.OpenParen)) 
-        {
+        if (Check(TokenType.Less) || Check(TokenType.OpenParen))
             return ParseFunction(typeNode, name);
-        }
 
         // Field or Global Variable
         var field = new FieldDeclarationNode(typeNode, name);
@@ -191,33 +138,13 @@ public sealed class Parser
         {
             IsPublic = isPublic, IsInternal = isInternal,
             Name = Consume(TokenType.Identifier, "Expect struct/contract name.").Value,
-            // Generic Definition: struct Vector<T>
-            GenericParams = ParseGenericParametersDeclaration()
         };
-
-        // Inheritance / Contracts: : Create, Destroy
-        if (Match(TokenType.Colon))
-        {
-            do {
-                // Parse inherited contract as a TypeNode (it can be generic: Comparable<int>)
-                // Since existing AST uses string list, we synthesize string or change AST.
-                // Keeping string logic for compatibility with existing AST nodes provided in prompt:
-                var contractType = ParseType();
-                // Simple serialization of type back to string for the existing AST node structure
-                // Ideally AST should use TypeNode for inheritance.
-                node.InheritedContracts.Add(FormatTypeNode(contractType)); 
-            } while (Match(TokenType.BitAnd) || Match(TokenType.Comma)); // Use Comma or &? Docs say bitwise AND logic but C# uses comma. Docs: ": Create, Destroy". Wait, docs say ": Create, Destroy" in example, but text says "inherit one or more". Let's assume Comma based on example.
-        }
         
-        // Constraints
-        // Note: Docs example shows constraints on functions, but structs can have them too in many langs.
-        // If Structs support 'where', add ParseGenericConstraints() here.
-
         Consume(TokenType.OpenBrace, "Expect '{'.");
+        
         while (!Check(TokenType.CloseBrace) && !IsAtEnd())
-        {
             node.Members.Add(ParseDeclaration());
-        }
+        
         Consume(TokenType.CloseBrace, "Expect '}'.");
         return node;
     }
@@ -225,33 +152,32 @@ public sealed class Parser
     private FunctionDeclarationNode ParseFunction(TypeNode returnType, string name)
     {
         var func = new FunctionDeclarationNode(returnType, name);
-
-        // Generic Parameters: void Method<T>()
-        // We must check if it's really generic params, not expression. In declaration context, '<' is always generic params start.
-        if (Check(TokenType.Less))
-        {
-            func.GenericParameters = ParseTypeNodesFromStrings(ParseGenericParametersDeclaration());
-        }
-
+        
         Consume(TokenType.OpenParen, "Expect '('.");
         if (!Check(TokenType.CloseParen))
         {
             do
             {
-                var paramType = ParseType(); 
-                func.Parameters.Add(ParseParameterDeclaration(paramType));
+                var singleModifiers = ParseTypeSingleModifiers();
+
+                if (Match(TokenType.This)) 
+                {
+                    var thisParam = new ThisNode(singleModifiers);
+                    func.ThisParameter = thisParam;
+                }
+                else
+                {
+                    var parameter = ParseParameterDeclaration(singleModifiers);
+                    func.Parameters.Add(parameter);
+                }
             } while (Match(TokenType.Comma));
         }
         Consume(TokenType.CloseParen, "Expect ')'.");
 
-        // Generic Constraints: where T == Create
-        // AST Node expects constraints logic. For now we parse but AST might not hold it fully based on provided classes.
-        // Assuming FunctionDeclarationNode has a place for this or we ignore result for now.
-        ParseGenericConstraints(); // todo: make constraints
-
-        // Body
+        // body
         if (Check(TokenType.OpenBrace))
             func.Body = ParseBlock();
+        // lambda
         else if (Match(TokenType.Arrow))
         {
             func.Body = new();
@@ -259,34 +185,11 @@ public sealed class Parser
             func.Body.Statements.Add(new ReturnStatementNode { Value = expr });
             Consume(TokenType.Semicolon, "Expect ';'.");
         }
-        else
-            Consume(TokenType.Semicolon, "Expect body or ';'.");
+        else Consume(TokenType.Semicolon, "Expect body or ';'.");
 
         return func;
     }
-
-    // Helper to adapt string list to TypeNode list for existing AST structure compatibility
-    private static List<TypeNode> ParseTypeNodesFromStrings(List<string> names)
-    {
-        var list = new List<TypeNode>();
-        foreach(var n in names) list.Add(new(n, null));
-        return list;
-    }
     
-    private static string FormatTypeNode(TypeNode type)
-    {
-        var s = type.Name; // Contains [] or *
-        if (type.Generics is { Count: > 0 })
-        {
-            s += "<";
-            s += string.Join(", ", type.Generics.Select(FormatTypeNode));
-            s += ">";
-        }
-        return s;
-    }
-
-    // --- Statements ---
-
     private StatementNode ParseStatement()
     {
         if (Match(TokenType.If)) return ParseIfStatement();
@@ -296,9 +199,9 @@ public sealed class Parser
         if (Match(TokenType.Var)) return ParseVarDeclaration(new("var"));
         if (Match(TokenType.Const))
         {
-            if (Match(TokenType.Var)) return ParseVarDeclaration(new("var"), isConst: true);
+            if (Match(TokenType.Var)) return ParseVarDeclaration(new("var"));
             var type = ParseType();
-            return ParseVarDeclaration(type, isConst: true);
+            return ParseVarDeclaration(type);
         }
         
         // Variable Declaration with explicit type: Vector<int> x = ...;
@@ -313,9 +216,7 @@ public sealed class Parser
 
         return ParseExpressionStatement();
     }
-
-    // --- Expressions ---
-
+    
     private ExpressionNode ParseExpression() => ParseAssignment();
 
     private ExpressionNode ParseAssignment()
@@ -339,26 +240,31 @@ public sealed class Parser
         while (Match(TokenType.Or)) { var op = Previous().Type; var right = ParseLogicalAnd(); expr = new BinaryExpressionNode(expr, (OperatorType)op, right); }
         return expr;
     }
+    
     private ExpressionNode ParseLogicalAnd() {
         var expr = ParseEquality();
         while (Match(TokenType.And)) { var op = Previous().Type; var right = ParseEquality(); expr = new BinaryExpressionNode(expr, (OperatorType)op, right); }
         return expr;
     }
+    
     private ExpressionNode ParseEquality() {
         var expr = ParseComparison();
         while (Match(TokenType.Equals, TokenType.NotEquals)) { var op = Previous().Type; var right = ParseComparison(); expr = new BinaryExpressionNode(expr, (OperatorType)op, right); }
         return expr;
     }
+    
     private ExpressionNode ParseComparison() {
         var expr = ParseTerm();
         while (Match(TokenType.Less, TokenType.LessOrEqual, TokenType.Greater, TokenType.GreaterOrEqual)) { var op = Previous().Type; var right = ParseTerm(); expr = new BinaryExpressionNode(expr, (OperatorType)op, right); }
         return expr;
     }
+    
     private ExpressionNode ParseTerm() {
         var expr = ParseFactor();
         while (Match(TokenType.Plus, TokenType.Minus)) { var op = Previous().Type; var right = ParseFactor(); expr = new BinaryExpressionNode(expr, (OperatorType)op, right); }
         return expr;
     }
+    
     private ExpressionNode ParseFactor() {
         var expr = ParseUnary();
         while (Match(TokenType.Star, TokenType.Slash, TokenType.Percent)) { var op = Previous().Type; var right = ParseUnary(); expr = new BinaryExpressionNode(expr, (OperatorType)op, right); }
@@ -373,6 +279,7 @@ public sealed class Parser
             var right = ParseUnary();
             return new UnaryExpressionNode((OperatorType)op, right);
         }
+        
         return ParsePrimary();
     }
 
@@ -416,28 +323,27 @@ public sealed class Parser
         {
             expr = ParseExpression();
             Consume(TokenType.CloseParen, "Expect ')'.");
+            
+            // type cast
+            if (expr is TypeNode type)
+            {
+                var fromExpr = ParseExpression();
+                expr = new TypeCastNode(fromExpr, type);
+            }
         }
-        // Identifier or Type start
+        // 'this' access
+        else if (Match(TokenType.This))
+        {
+            expr = new ThisNode(SingleModifiers.None);
+        }
+        // identifier, type
         else if (Check(TokenType.Identifier) || IsPrimitiveType(Peek())) 
         {
-            // Here is the tricky part: Is it a TypeNode (for static access like Vector.Create) or an Identifier (variable)?
-            // Or is it a Generic Method Call on implicit 'this'?
-            
-            // We parse as TypeNode first. TypeNode captures generics: Vector<int>
-            var typeNode = ParseType(allowPostfixModifiers: false); 
-            
-            // If it has generics, it's definitely a type ref (or generic method call which we convert to expression)
-            // If it's just a name, it could be a variable.
-            if (typeNode.Generics != null || IsPrimitiveType(Previous())) 
-            {
-                // Treated as Type (Static access context or constructor-like)
+            var typeNode = ParseType(false, false);
+
+            if (IsPrimitiveType(Previous()))
                 expr = typeNode;
-            }
-            else 
-            {
-                // Simple identifier, likely a variable access
-                expr = new IdentifierExpressionNode(typeNode.Name);
-            }
+            else expr = new IdentifierExpressionNode(typeNode.Name); // variable access
         }
         else throw Error(Peek(), $"Expect expression, found '{Peek().Value}'.");
 
@@ -455,18 +361,6 @@ public sealed class Parser
             {
                 var member = Consume(TokenType.Identifier, "Expect member name.").Value;
                 
-                // Generic Method Call: obj.Method<T>(...)
-                if (Check(TokenType.Less) && IsGenericLookahead(_current))
-                {
-                    // For expression tree, we might need a specific node for GenericMemberAccess
-                    // Or we just attach generics to the method name in a hacky way if AST doesn't support it fully.
-                    // Let's parse generics as Types.
-                    var generics = ParseGenericArguments();
-                    // Store generics in MemberAccessExpressionNode if possible, or encoded in name
-                     // Assuming AST update or temporary hack:
-                    member += "<" + string.Join(",", generics.Select(FormatTypeNode)) + ">"; 
-                }
-                
                 expr = new MemberAccessExpressionNode { Object = expr, MemberName = member };
             }
             // Indexer: arr[i]
@@ -481,9 +375,7 @@ public sealed class Parser
 
         return expr;
     }
-
-    // --- Helpers ---
-
+    
     private bool IsVariableDeclaration()
     {
         // Must start with Type
@@ -498,13 +390,7 @@ public sealed class Parser
             idx++;
             if (idx < _tokens.Count && _tokens[idx].Type == TokenType.Less)
             {
-                // Check if it's a generic type: List<int>
-                if (IsGenericLookahead(idx))
-                {
-                    idx = SkipGenericBalance(idx);
-                    if (idx == -1) return false;
-                }
-                else return false; // Identifier followed by < but not generic -> likely expression "x < y"
+                return false; // Identifier followed by < but not generic -> likely expression "x < y"
             }
         }
         else return false;
@@ -526,64 +412,7 @@ public sealed class Parser
 
         return false;
     }
-
-    // Robust generic lookahead
-    // Checks if the sequence starting at '<' forms a valid Generic Argument List
-    private bool IsGenericLookahead(int startIndex)
-    {
-        var end = SkipGenericBalance(startIndex);
-        if (end == -1) return false;
-        
-        // Check what comes AFTER the closing '>'
-        if (end >= _tokens.Count) return false;
-        
-        var t = _tokens[end];
-        
-        // Contexts where a generic type/call can appear:
-        return t.Type switch
-        {
-            TokenType.OpenParen => true,    // Func<T>()
-            TokenType.Dot => true,          // Type<T>.Member
-            TokenType.OpenBracket => true,  // Type<T>[] or Type<T>[index]
-            TokenType.Star => true,         // Type<T>*
-            TokenType.Identifier => true,   // Type<T> varName
-            TokenType.CloseParen => true,   // (Type<T>) cast or arg end
-            TokenType.Comma => true,        // List<Type<T>, ...>
-            TokenType.Greater => true,      // List<List<T>>
-            TokenType.Semicolon => true,    // End of statement
-            TokenType.Assign => true,       // var x = ...
-            TokenType.CloseBrace => true,   // }
-            _ => false
-        };
-    }
-
-    private int SkipGenericBalance(int start)
-    {
-        if (_tokens[start].Type != TokenType.Less) return -1;
-        var i = start + 1;
-        var balance = 1;
-
-        while (i < _tokens.Count && balance > 0)
-        {
-            var t = _tokens[i];
-
-            // Heuristic: If we hit a token that definitely CANNOT be inside a type, abort.
-            // Allowed: Identifiers, Primitives, ',', '<', '>', '[', ']', '*'
-            // Disallowed: ';', '(', ')', Operators like '+', '==', keywords like 'return', 'class'
-            
-            if (t.Type == TokenType.Less) balance++;
-            else if (t.Type == TokenType.Greater) balance--;
-            else if (t.Type == TokenType.Semicolon || t.Type == TokenType.OpenParen || t.Type == TokenType.CloseParen || t.Type == TokenType.OpenBrace) 
-                return -1; // Not a generic list
-            
-            // Add more heuristics if needed (e.g. check for math operators)
-            
-            i++;
-        }
-        
-        return balance == 0 ? i : -1; // Return index AFTER '>'
-    }
-
+    
     private bool IsUseDeclaration()
     {
         var i = _current;
@@ -625,18 +454,22 @@ public sealed class Parser
         Consume(TokenType.CloseBrace, "Expect '}'.");
         return block;
     }
-
-    private VarDeclarationNode ParseParameterDeclaration(TypeNode type, bool isConst = false)
+    
+    private VarDeclarationNode ParseParameterDeclaration(SingleModifiers singleModifiers)
     {
+        var typeName = ConsumeType().Value;
+        var stackableModifiers = ParseTypeStackableModifiers();
+        var type = new TypeNode(typeName, stackableModifiers) { SingleModifiers = singleModifiers };
+        
         var name = Consume(TokenType.Identifier, "Expect param name.").Value;
         
         ExpressionNode? init = null;
         if (Match(TokenType.Assign)) init = ParseExpression();
         
-        return new(type, name, isConst, init);
+        return new(type, name, init);
     }
     
-    private VarDeclarationNode ParseVarDeclaration(TypeNode type, bool isConst = false)
+    private VarDeclarationNode ParseVarDeclaration(TypeNode type)
     {
         var name = Consume(TokenType.Identifier, "Expect var name.").Value;
         
@@ -644,7 +477,7 @@ public sealed class Parser
         if (Match(TokenType.Assign)) init = ParseExpression();
         
         Consume(TokenType.Semicolon, "Expect ';'.");
-        return new(type, name, isConst, init);
+        return new(type, name, init);
     }
 
     private IfStatementNode ParseIfStatement()
