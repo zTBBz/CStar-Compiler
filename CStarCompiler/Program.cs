@@ -7,8 +7,8 @@ var files = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.cstar");
 
 var lexer = new Lexer();
 var parser = new Parser();
-var analyzer = new MonomorphizationAnalyzer(); // 1. Создаем анализатор
 var generator = new CodeGenerator();
+var writer = new ProjectWriter();
 
 foreach (var file in files)
 {
@@ -30,21 +30,14 @@ foreach (var file in files)
         Console.WriteLine("Parsing failed.");
         continue;
     }
-    
-    Console.WriteLine($"Parsed Module: {ast.ModuleName}");
-    Console.WriteLine($"Declarations: {ast.Declarations.Count}");
 
-    // 2. Запускаем этап анализа для сбора использования дженериков
-    // Анализатор заполнит свои словари (StructUsages, FunctionUsages)
-    analyzer.Analyze(ast);
-    Console.WriteLine("Analysis completed.");
+    var unit = generator.GenerateUnit(ast);
 
-    // 3. Передаем анализатор в генератор
-    var unit = generator.GenerateUnit(ast, analyzer);
-
-    FileWriter.WriteToDisk(unit, Path.Combine(Directory.GetCurrentDirectory(), "output"));
+    writer.AddCompilationUnit(unit);
     Console.WriteLine("Code generated successfully.\n");
 }
+
+writer.WriteToDisk(Path.Combine(Directory.GetCurrentDirectory(), ".output"));
 
 Console.WriteLine("Compilation finished.");
 Console.ReadLine();

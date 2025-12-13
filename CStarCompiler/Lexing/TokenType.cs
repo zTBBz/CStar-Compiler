@@ -43,9 +43,6 @@ public enum TokenType : byte
     True,
     False,
     Null,
-
-    Compile,
-    CCode,   
     
     // Operators
     Plus,           // +

@@ -3,13 +3,14 @@ using CStarCompiler.Parsing.Nodes.Modules;
 
 namespace CStarCompiler.CodeGeneration;
 
-public sealed class MonomorphizationAnalyzer
+// todo: analyzer must contains all generics declarations. No CodeGenerator search for generics 
+public sealed class GenericAnalyzer
 {
     // Хранит найденные использования структур: "Vector" -> { [int], [float], [List<int>] }
     public readonly Dictionary<string, HashSet<List<TypeNode>>> StructUsages = new();
     
     // Хранит найденные использования функций: "Print" -> { [int], [double] }
-    public readonly Dictionary<string, HashSet<List<TypeNode>>> FunctionUsages = new();
+    public readonly Dictionary<string, HashSet<List<TypeNode>>> FunctionUsages = new();                                                                                                     
 
     // Компаратор для списков типов, чтобы HashSet корректно определял уникальность сигнатур <int, float>
     private readonly TypeListComparer _comparer = new();
@@ -87,16 +88,13 @@ public sealed class MonomorphizationAnalyzer
                 // В парсере это может выглядеть как IdentifierExpression, если имя сложное, 
                 // но чаще всего generics хранятся в TypeNode, если парсер это распознал.
                 // Допустим, парсер возвращает TypeNode в Callee, если был синтаксис Func<T>().
-                if (call.Callee is TypeNode typeCallee && typeCallee.Generics != null && typeCallee.Generics.Count > 0)
+                if (call.Callee is TypeNode { Generics.Count: > 0 } typeCallee)
                 {
                     RegisterUsage(FunctionUsages, typeCallee.Name, typeCallee.Generics);
                     // Рекурсивно сканируем аргументы дженерика (вдруг там Function<Vector<int>>)
                     foreach (var g in typeCallee.Generics) ScanType(g);
                 }
-                else
-                {
-                    ScanExpression(call.Callee);
-                }
+                else ScanExpression(call.Callee);
 
                 foreach (var arg in call.Arguments) ScanExpression(arg);
                 break;
@@ -125,24 +123,20 @@ public sealed class MonomorphizationAnalyzer
                 ScanType(t);
                 break;
             
-            // Literal и Identifier не содержат вложенных типов для анализа
+            // todo: by now Literal and Identifier not contains generic types, but later will be like: $"{Type<T>.Name} is some name"
         }
     }
 
     private void ScanType(TypeNode type)
     {
         // Если это дженерик тип, например Vector<int>
-        if (type.Generics is { Count: > 0 })
-        {
-            // Регистрируем, что нам нужна специализация структуры "Vector" с аргументами "int"
-            RegisterUsage(StructUsages, type.Name, type.Generics);
+        if (type.Generics is not { Count: > 0 }) return;
+        
+        // Регистрируем, что нам нужна специализация структуры "Vector" с аргументами "int"
+        RegisterUsage(StructUsages, type.Name, type.Generics);
 
-            // Рекурсивно проверяем аргументы. Вдруг это Vector<List<int>>?
-            foreach (var genericArg in type.Generics)
-            {
-                ScanType(genericArg);
-            }
-        }
+        // Рекурсивно проверяем аргументы. Вдруг это Vector<List<int>>?
+        foreach (var genericArg in type.Generics) ScanType(genericArg);
     }
 
     private void RegisterUsage(Dictionary<string, HashSet<List<TypeNode>>> registry, string name, List<TypeNode> args)
@@ -156,7 +150,6 @@ public sealed class MonomorphizationAnalyzer
         value.Add(args);
     }
 
-    // Компаратор для сравнения списков TypeNode по их содержимому (именам)
     private sealed class TypeListComparer : IEqualityComparer<List<TypeNode>>
     {
         public bool Equals(List<TypeNode>? x, List<TypeNode>? y)

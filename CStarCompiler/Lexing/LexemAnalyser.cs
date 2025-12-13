@@ -26,9 +26,12 @@ public static class LexemAnalyser
         
         if (token.Value.StartsWith('\"') || token.Value.StartsWith('\''))
             return errorMessage + $"Unclosed quote or invalid literal format -> {token.Value}";
+        
+        if (token.Value is "nowrite")
+            return errorMessage + $"Not supported in C* by now -> {token.Value}";
 
         if (token.Value == string.Empty)
-            return errorMessage + $"Operator is not supported in C* by now.";
+            return errorMessage + "Operator is not supported in C* by now.";
 
         return errorMessage + $"Unexpected character or sequence -> '{token.Value}'";
     }

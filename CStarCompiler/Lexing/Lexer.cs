@@ -44,8 +44,6 @@ public sealed class Lexer
         "false" => TokenType.False,
         "null" => TokenType.Null,
         
-        "compile" => TokenType.Compile,
-        "CCode" => TokenType.CCode,
         _ => TokenType.Identifier
     };
     

@@ -90,7 +90,8 @@ public sealed class Parser
 
         do
         {
-            args.Add(ParseType());
+            // for generic arguments, we don't allow postfix modifiers
+            args.Add(ParseType(false)); 
         } while (Match(TokenType.Comma));
 
         Consume(TokenType.Greater, "Expect '>' after generic arguments.");
@@ -118,41 +119,38 @@ public sealed class Parser
 
         return constraints;
     }
-
-    // --- Type Parsing ---
-
-    private TypeNode ParseType(bool allowModifiers = true)
+    
+    private TypeNode ParseType(bool allowPostfixModifiers = true)
     {
-        // 1. Base Type Name (Identifier or Primitive)
+        // base type name (identifier or primitive)
         var typeName = ConsumeType().Value;
         List<TypeNode>? generics = null;
 
-        // 2. Generic Arguments: <int, T>
-        // Only check for generics if valid lookahead confirms it's not a less-than operator (unlikely here but safe)
+        // generic Arguments: <int, T>
+        // only check for generics if valid lookahead confirms it's not a less-than operator (unlikely here but safe)
         if (Check(TokenType.Less) && IsGenericLookahead(_current)) generics = ParseGenericArguments();
 
-        // If modifiers are forbidden (e.g. inside specific expression context), return raw type
-        if (!allowModifiers) return new(typeName, generics);
+        // if modifiers are forbidden (e.g. inside specific expression context), return raw type
+        if (!allowPostfixModifiers) return new(typeName, generics);
 
-        // 3. Modifiers: [], *
+        var postfixModifiers = new List<PostfixModifierType>();
+
+        // postfix modifiers: [], *
         while (true)
         {
             if (Match(TokenType.OpenBracket))
             {
-                Consume(TokenType.CloseBracket, "Expect ']' for array type.");
-                typeName += "[]";
+                Consume(TokenType.CloseBracket, "Expect ']' for array.");
+                postfixModifiers.Add(PostfixModifierType.Array);
             }
             else if (Match(TokenType.Star))
-                typeName += "*";
-            else
-                break;
+                postfixModifiers.Add(PostfixModifierType.Pointer);
+            else break;
         }
 
-        return new(typeName, generics);
+        return new(typeName, generics, postfixModifiers);
     }
-
-    // --- Declarations ---
-
+    
     private DeclarationNode ParseDeclaration()
     {
         bool isPublic = false, isInternal = false;
@@ -291,9 +289,6 @@ public sealed class Parser
 
     private StatementNode ParseStatement()
     {
-        if (Match(TokenType.CCode)) return ParseBlock(isCCode: true);
-        if (Match(TokenType.Compile)) return ParseBlock(isCompile: true);
-        
         if (Match(TokenType.If)) return ParseIfStatement();
         if (Match(TokenType.Return)) return ParseReturnStatement();
         
@@ -410,6 +405,7 @@ public sealed class Parser
                      CompilerDirectiveParameter.Declaration => ParseDeclaration(),
                      _ => throw new NotImplementedException()
                  };
+                 
                  directive.Nodes.Add(node);
                  if (Array.IndexOf(directive.Parameters, parameter) != directive.Parameters.Length - 1) Match(TokenType.Comma); // Optional comma check
              }
@@ -428,7 +424,7 @@ public sealed class Parser
             // Or is it a Generic Method Call on implicit 'this'?
             
             // We parse as TypeNode first. TypeNode captures generics: Vector<int>
-            var typeNode = ParseType(allowModifiers: false); 
+            var typeNode = ParseType(allowPostfixModifiers: false); 
             
             // If it has generics, it's definitely a type ref (or generic method call which we convert to expression)
             // If it's just a name, it could be a variable.
@@ -603,27 +599,29 @@ public sealed class Parser
 
     private UseNode ParseUse()
     {
-        bool isGlobal = false, isPublic = false, isCLib = false;
+        bool isGlobal = false, isPublic = false;
         while (Match(TokenType.Global, TokenType.Public, TokenType.Internal, TokenType.At))
         {
             if (Previous().Type == TokenType.Global) isGlobal = true;
             if (Previous().Type == TokenType.Public) isPublic = true;
-            if (Previous().Type == TokenType.At) {
-                 if (Consume(TokenType.Identifier, "Expect directive.").Value == "CLibrary") isCLib = true;
-            }
         }
+        
         Consume(TokenType.Use, "Expect 'use'.");
         var name = Consume(TokenType.Identifier, "Expect module.").Value;
+        
         while (Match(TokenType.Dot)) { name += "." + Consume(TokenType.Identifier, "Expect id.").Value; }
         Consume(TokenType.Semicolon, "Expect ';'.");
-        return new() { ModuleName = name, IsGlobal = isGlobal, IsPublic = isPublic, IsCLibrary = isCLib };
+        
+        return new() { ModuleName = name, IsGlobal = isGlobal, IsPublic = isPublic };
     }
 
-    private BlockStatementNode ParseBlock(bool isCCode = false, bool isCompile = false)
+    private BlockStatementNode ParseBlock()
     {
-        var block = new BlockStatementNode { IsCCode = isCCode, IsCompileBlock = isCompile };
+        var block = new BlockStatementNode();
+        
         Consume(TokenType.OpenBrace, "Expect '{'.");
         while (!Check(TokenType.CloseBrace) && !IsAtEnd()) block.Statements.Add(ParseStatement());
+        
         Consume(TokenType.CloseBrace, "Expect '}'.");
         return block;
     }
@@ -631,16 +629,20 @@ public sealed class Parser
     private VarDeclarationNode ParseParameterDeclaration(TypeNode type, bool isConst = false)
     {
         var name = Consume(TokenType.Identifier, "Expect param name.").Value;
+        
         ExpressionNode? init = null;
         if (Match(TokenType.Assign)) init = ParseExpression();
+        
         return new(type, name, isConst, init);
     }
     
     private VarDeclarationNode ParseVarDeclaration(TypeNode type, bool isConst = false)
     {
         var name = Consume(TokenType.Identifier, "Expect var name.").Value;
+        
         ExpressionNode? init = null;
         if (Match(TokenType.Assign)) init = ParseExpression();
+        
         Consume(TokenType.Semicolon, "Expect ';'.");
         return new(type, name, isConst, init);
     }
@@ -650,8 +652,10 @@ public sealed class Parser
         Consume(TokenType.OpenParen, "Expect '('.");
         var cond = ParseExpression();
         Consume(TokenType.CloseParen, "Expect ')'.");
+        
         var then = ParseStatement();
         var el = Match(TokenType.Else) ? ParseStatement() : null;
+        
         return new() { Condition = cond, ThenBranch = then, ElseBranch = el };
     }
 
@@ -659,6 +663,7 @@ public sealed class Parser
     {
         ExpressionNode? val = null;
         if (!Check(TokenType.Semicolon)) val = ParseExpression();
+        
         Consume(TokenType.Semicolon, "Expect ';'.");
         return new() { Value = val };
     }
@@ -674,6 +679,7 @@ public sealed class Parser
     {
         var args = new List<ExpressionNode>();
         if (!Check(TokenType.CloseParen)) do { args.Add(ParseExpression()); } while (Match(TokenType.Comma));
+        
         Consume(TokenType.CloseParen, "Expect ')'.");
         return args;
     }
