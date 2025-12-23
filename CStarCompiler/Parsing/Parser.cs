@@ -2,8 +2,8 @@ using CStarCompiler.Lexing;
 using CStarCompiler.Parsing.Nodes;
 using CStarCompiler.Parsing.Nodes.Base;
 using CStarCompiler.Parsing.Nodes.Declarations;
+using CStarCompiler.Parsing.Nodes.Modifiers;
 using CStarCompiler.Parsing.Nodes.Modules;
-using CStarCompiler.Parsing.Nodes.This;
 
 namespace CStarCompiler.Parsing;
 
@@ -21,111 +21,102 @@ public sealed class Parser
         _current = 0;
         _hadError = false;
 
-        var module = new ModuleNode();
+        var module = new ModuleNode(Peek());
 
         try
         {
-            // 1. Module Name
+            // module declaration
             if (Match(TokenType.Module))
             {
                 module.ModuleName = Consume(TokenType.Identifier, "Expect module name.").Value;
                 Consume(TokenType.Semicolon, "Expect ';' after module name.");
             }
 
-            // 2. Declarations
+            // declarations
             while (!IsAtEnd())
             {
                 try
                 {
-                    if (IsUseDeclaration()) module.Imports.Add(ParseUse());
+                    if (IsUseDeclaration())
+                    {
+                        module.Imports ??= [];
+                        module.Imports.Add(ParseUse());
+                    }
                     else module.Declarations.Add(ParseDeclaration());
                 }
                 catch (ParseException)
                 {
-                    Synchronize();
+                    break;
                 }
             }
         }
         catch (ParseException)
         {
-            // Fatal error handling
+            
         }
 
         return _hadError ? null : module;
     }
-    
-    private TypeNode ParseType(bool allowStackableModifiers = true, bool allowSingleModifiers = true)
+
+    private SingleModifiersNode ParseSingleModifiers()
     {
-        var singleModifiers = allowSingleModifiers ? ParseTypeSingleModifiers() : SingleModifiers.None;
+        var isRef = false;
+        var isConst = false;
+        var isNoWrite = false;
 
-        // base type name (identifier or primitive)
-        var typeName = ConsumeType().Value;
-        
-        // if modifiers are forbidden (e.g. inside specific expression context), return raw type
-        if (!allowStackableModifiers) return new(typeName) { SingleModifiers = singleModifiers };
+        var location = Peek();
 
-        var stackableModifiers = ParseTypeStackableModifiers();
+        if (Match(TokenType.Ref)) isRef = true;
+        if (Match(TokenType.NoWrite)) isNoWrite = true;
 
-        return new(typeName, stackableModifiers) { SingleModifiers = singleModifiers };
+        return new(isRef, isConst, isNoWrite, location);
     }
 
-    private SingleModifiers ParseTypeSingleModifiers()
+    private StackableModifiersNode ParseStackableModifiers()
     {
-        SingleModifiers modifiers = new();
+        var modifiers = new List<StackableModifierType>();
+
+        var location = Peek();
         
-        if (Match(TokenType.Ref)) modifiers |= SingleModifiers.Ref;
-        if (Match(TokenType.Const)) modifiers |= SingleModifiers.Const;
-        // todo: add more modifiers
-
-        return modifiers;
-    }
-
-    private List<StackableModifierType> ParseTypeStackableModifiers()
-    {
-        var postfixModifiers = new List<StackableModifierType>();
-
-        // postfix modifiers: [], *
+        // [], *
         while (true)
         {
             if (Match(TokenType.OpenBracket))
             {
                 Consume(TokenType.CloseBracket, "Expect ']' for array.");
-                postfixModifiers.Add(StackableModifierType.Array);
+                modifiers.Add(StackableModifierType.Array);
             }
             else if (Match(TokenType.Star))
-                postfixModifiers.Add(StackableModifierType.Pointer);
+                modifiers.Add(StackableModifierType.Pointer);
             else break;
         }
 
-        return postfixModifiers;
+        return new(modifiers, location);
     }
 
     private DeclarationNode ParseDeclaration()
     {
         bool isPublic = false, isInternal = false;
         
-        // Modifiers
-        while (Match(TokenType.Public, TokenType.Internal, TokenType.At))
+        // visibility modifiers
+        while (Match(TokenType.Public, TokenType.Internal))
         {
             if (Previous().Type == TokenType.Public) isPublic = true;
             if (Previous().Type == TokenType.Internal) isInternal = true;
-            // Handle directives if needed
         }
 
-        if (Match(TokenType.Struct, TokenType.Contract)) return ParseStruct(isPublic, isInternal);
+        if (Match(TokenType.Struct)) return ParseStruct(isPublic, isInternal);
+
+        var identifierLocation = Consume(TokenType.Identifier, "Expect identifier.");
         
-        // Before parsing type, we need to distinguish Constructor declaration or Method declaration vs Field
-        // But in CStar syntax: Type Name ...
-        
-        var typeNode = ParseType();
+        var identifierNode = new IdentifierNode(identifierLocation.Value, identifierLocation);
         var name = Consume(TokenType.Identifier, "Expect name.").Value;
 
-        // Function Declaration: Type Name<T>(...) or Type Name(...)
-        if (Check(TokenType.Less) || Check(TokenType.OpenParen))
-            return ParseFunction(typeNode, name);
+        if (Check(TokenType.OpenParen))
+            return ParseFunction(identifierNode, name);
 
         // Field or Global Variable
-        var field = new FieldDeclarationNode(typeNode, name);
+        var field = new FieldDeclarationNode(identifierNode, name, identifierLocation);
         if (Match(TokenType.Assign)) field.Initializer = ParseExpression();
         
         Consume(TokenType.Semicolon, "Expect ';' after declaration.");
@@ -134,11 +125,9 @@ public sealed class Parser
 
     private StructDeclarationNode ParseStruct(bool isPublic, bool isInternal)
     {
-        var node = new StructDeclarationNode
-        {
-            IsPublic = isPublic, IsInternal = isInternal,
-            Name = Consume(TokenType.Identifier, "Expect struct/contract name.").Value,
-        };
+        var structLocation = Consume(TokenType.Identifier, "Expect struct name.");
+        
+        var node = new StructDeclarationNode(structLocation.Value, structLocation);
         
         Consume(TokenType.OpenBrace, "Expect '{'.");
         
@@ -149,30 +138,21 @@ public sealed class Parser
         return node;
     }
 
-    private FunctionDeclarationNode ParseFunction(TypeNode returnType, string name)
+    private FunctionDeclarationNode ParseFunction(IdentifierNode returnType, string name)
     {
-        var func = new FunctionDeclarationNode(returnType, name);
+        var func = new FunctionDeclarationNode(returnType, name, returnType.Location);
         
-        Consume(TokenType.OpenParen, "Expect '('.");
+        Consume(TokenType.OpenParen, "Expect '(' before function parameters.");
         if (!Check(TokenType.CloseParen))
         {
             do
             {
-                var singleModifiers = ParseTypeSingleModifiers();
-
-                if (Match(TokenType.This)) 
-                {
-                    var thisParam = new ThisNode(singleModifiers);
-                    func.ThisParameter = thisParam;
-                }
-                else
-                {
-                    var parameter = ParseParameterDeclaration(singleModifiers);
-                    func.Parameters.Add(parameter);
-                }
+                var parameter = ParseParameterDeclaration();
+                func.Parameters.Add(parameter);
+                
             } while (Match(TokenType.Comma));
         }
-        Consume(TokenType.CloseParen, "Expect ')'.");
+        Consume(TokenType.CloseParen, "Expect ')' after function parameters.");
 
         // body
         if (Check(TokenType.OpenBrace))
@@ -180,10 +160,10 @@ public sealed class Parser
         // lambda
         else if (Match(TokenType.Arrow))
         {
-            func.Body = new();
+            func.Body = new(Peek());
             var expr = ParseExpression();
-            func.Body.Statements.Add(new ReturnStatementNode { Value = expr });
-            Consume(TokenType.Semicolon, "Expect ';'.");
+            func.Body.Statements.Add(new ReturnStatementNode(expr.Location, expr));
+            Consume(TokenType.Semicolon, "Expect ';' after function lambda.");
         }
         else Consume(TokenType.Semicolon, "Expect body or ';'.");
 
@@ -192,23 +172,14 @@ public sealed class Parser
     
     private StatementNode ParseStatement()
     {
-        if (Match(TokenType.If)) return ParseIfStatement();
-        if (Match(TokenType.Return)) return ParseReturnStatement();
-        
-        // Var / Const declarations
-        if (Match(TokenType.Var)) return ParseVarDeclaration(new("var"));
-        if (Match(TokenType.Const))
+        if (Check(TokenType.If)) return ParseIfStatement();
+        if (Check(TokenType.Return)) return ParseReturnStatement();
+
+        if (Check(TokenType.Identifier))
         {
-            if (Match(TokenType.Var)) return ParseVarDeclaration(new("var"));
-            var type = ParseType();
-            return ParseVarDeclaration(type);
-        }
-        
-        // Variable Declaration with explicit type: Vector<int> x = ...;
-        // Needs lookahead to distinguish from expression Vector<int>.Create() or x < y
-        if (IsVariableDeclaration())
-        {
-            var type = ParseType();
+            var location = Consume(TokenType.Identifier, "Expect identifier.");
+            
+            var type = new IdentifierNode(location.Value, location);
             return ParseVarDeclaration(type);
         }
 
@@ -226,48 +197,92 @@ public sealed class Parser
         if (Match(TokenType.Assign))
         {
             var value = ParseAssignment();
-            expr = new BinaryExpressionNode(expr, OperatorType.Assign, value);
+            expr = new BinaryExpressionNode(expr, OperatorType.Assign, value, value.Location);
         }
 
         return expr;
     }
     
-    // ... LogicalAnd, Equality, Comparison, Term, Factor, Unary match existing structure ...
-    // Included shortened versions for brevity, restoring full chain:
-
-    private ExpressionNode ParseLogicalOr() {
+    private ExpressionNode ParseLogicalOr()
+    {
         var expr = ParseLogicalAnd();
-        while (Match(TokenType.Or)) { var op = Previous().Type; var right = ParseLogicalAnd(); expr = new BinaryExpressionNode(expr, (OperatorType)op, right); }
+        
+        while (Match(TokenType.Or))
+        {
+            var op = Previous().Type; var right = ParseLogicalAnd();
+            expr = new BinaryExpressionNode(expr, (OperatorType)op, right, expr.Location);
+        }
+        
         return expr;
     }
     
-    private ExpressionNode ParseLogicalAnd() {
+    private ExpressionNode ParseLogicalAnd()
+    {
         var expr = ParseEquality();
-        while (Match(TokenType.And)) { var op = Previous().Type; var right = ParseEquality(); expr = new BinaryExpressionNode(expr, (OperatorType)op, right); }
+        
+        while (Match(TokenType.And))
+        {
+            var op = Previous().Type;
+            var right = ParseEquality();
+            expr = new BinaryExpressionNode(expr, (OperatorType)op, right, expr.Location);
+        }
+        
         return expr;
     }
     
-    private ExpressionNode ParseEquality() {
+    private ExpressionNode ParseEquality()
+    {
         var expr = ParseComparison();
-        while (Match(TokenType.Equals, TokenType.NotEquals)) { var op = Previous().Type; var right = ParseComparison(); expr = new BinaryExpressionNode(expr, (OperatorType)op, right); }
+        
+        while (Match(TokenType.Equals, TokenType.NotEquals))
+        {
+            var op = Previous().Type;
+            var right = ParseComparison(); 
+            expr = new BinaryExpressionNode(expr, (OperatorType)op, right, expr.Location);
+        }
+        
         return expr;
     }
     
-    private ExpressionNode ParseComparison() {
+    private ExpressionNode ParseComparison()
+    {
         var expr = ParseTerm();
-        while (Match(TokenType.Less, TokenType.LessOrEqual, TokenType.Greater, TokenType.GreaterOrEqual)) { var op = Previous().Type; var right = ParseTerm(); expr = new BinaryExpressionNode(expr, (OperatorType)op, right); }
+        
+        while (Match(TokenType.Less, TokenType.LessOrEqual, TokenType.Greater, TokenType.GreaterOrEqual))
+        {
+            var op = Previous().Type; 
+            var right = ParseTerm(); 
+            expr = new BinaryExpressionNode(expr, (OperatorType)op, right, expr.Location);
+        }
+        
         return expr;
     }
     
-    private ExpressionNode ParseTerm() {
+    private ExpressionNode ParseTerm()
+    {
         var expr = ParseFactor();
-        while (Match(TokenType.Plus, TokenType.Minus)) { var op = Previous().Type; var right = ParseFactor(); expr = new BinaryExpressionNode(expr, (OperatorType)op, right); }
+        
+        while (Match(TokenType.Plus, TokenType.Minus))
+        {
+            var op = Previous().Type; 
+            var right = ParseFactor(); 
+            expr = new BinaryExpressionNode(expr, (OperatorType)op, right, expr.Location);
+        }
+        
         return expr;
     }
     
-    private ExpressionNode ParseFactor() {
+    private ExpressionNode ParseFactor()
+    {
         var expr = ParseUnary();
-        while (Match(TokenType.Star, TokenType.Slash, TokenType.Percent)) { var op = Previous().Type; var right = ParseUnary(); expr = new BinaryExpressionNode(expr, (OperatorType)op, right); }
+
+        while (Match(TokenType.Star, TokenType.Slash, TokenType.Percent))
+        {
+            var op = Previous().Type; 
+            var right = ParseUnary();
+            expr = new BinaryExpressionNode(expr, (OperatorType)op, right, expr.Location);
+        }
+        
         return expr;
     }
 
@@ -277,7 +292,7 @@ public sealed class Parser
         {
             var op = Previous().Type;
             var right = ParseUnary();
-            return new UnaryExpressionNode((OperatorType)op, right);
+            return new UnaryExpressionNode((OperatorType)op, right, right.Location);
         }
         
         return ParsePrimary();
@@ -287,130 +302,58 @@ public sealed class Parser
     {
         ExpressionNode expr;
 
-        if (Match(TokenType.False)) expr = new LiteralExpressionNode { Value = false, Type = "bool" };
-        else if (Match(TokenType.True)) expr = new LiteralExpressionNode { Value = true, Type = "bool" };
-        else if (Match(TokenType.IntegerLiteral)) expr = new LiteralExpressionNode { Value = int.Parse(Previous().Value), Type = "int" };
-        else if (Match(TokenType.FloatLiteral)) expr = new LiteralExpressionNode { Value = float.Parse(Previous().Value.TrimEnd('f', 'F')), Type = "float" };
-        else if (Match(TokenType.StringLiteral)) expr = new LiteralExpressionNode { Value = Previous().Value, Type = "string" };
-        else if (Match(TokenType.CharLiteral)) expr = new LiteralExpressionNode { Value = Previous().Value, Type = "char" };
-        else if (Match(TokenType.At))
-        {
-             // Directive handling (same as before)
-             var directiveName = Consume(TokenType.Identifier, "Expect directive name.").Value;
-             Consume(TokenType.OpenParen, "Expect '('.");
-             if (!CompilerDirectives.IsDirective(directiveName)) Error(Previous(), "Unknown directive.");
-             var directive = CompilerDirectives.GetDirective(directiveName);
-             
-             foreach (var parameter in directive.Parameters)
-             {
-                 AstNode node = parameter switch 
-                 {
-                     CompilerDirectiveParameter.Identifier => new IdentifierExpressionNode(Consume(TokenType.Identifier, "Expect identifier.").Value),
-                     CompilerDirectiveParameter.Type => ParseType(),
-                     CompilerDirectiveParameter.StringLiteral => new LiteralExpressionNode { Value = Consume(TokenType.StringLiteral, "Expect string.").Value, Type = "string" },
-                     CompilerDirectiveParameter.Expression => ParseExpression(),
-                     CompilerDirectiveParameter.Declaration => ParseDeclaration(),
-                     _ => throw new NotImplementedException()
-                 };
-                 
-                 directive.Nodes.Add(node);
-                 if (Array.IndexOf(directive.Parameters, parameter) != directive.Parameters.Length - 1) Match(TokenType.Comma); // Optional comma check
-             }
-             Consume(TokenType.CloseParen, "Expect ')'.");
-             expr = directive;
-        }
+        var location = Peek();
+        
+        if (Match(TokenType.False)) expr = new LiteralExpressionNode(false, "bool", location);
+        else if (Match(TokenType.True)) expr = new LiteralExpressionNode(true, "bool", location);
+        else if (Match(TokenType.IntegerLiteral)) expr = new LiteralExpressionNode(int.Parse(location.Value), "int", location);
+        else if (Match(TokenType.FloatLiteral)) expr = new LiteralExpressionNode(float.Parse(location.Value.TrimEnd('f', 'F')), "float", location);
+        else if (Match(TokenType.StringLiteral)) expr = new LiteralExpressionNode(location.Value, "string", location);
+        else if (Match(TokenType.CharLiteral)) expr = new LiteralExpressionNode(location.Value, "char", location);
         else if (Match(TokenType.OpenParen))
         {
             expr = ParseExpression();
             Consume(TokenType.CloseParen, "Expect ')'.");
-            
-            // type cast
-            if (expr is TypeNode type)
-            {
-                var fromExpr = ParseExpression();
-                expr = new TypeCastNode(fromExpr, type);
-            }
         }
         // 'this' access
         else if (Match(TokenType.This))
         {
-            expr = new ThisNode(SingleModifiers.None);
+            expr = new IdentifierNode("this", location);
         }
-        // identifier, type
-        else if (Check(TokenType.Identifier) || IsPrimitiveType(Peek())) 
+        else if (Match(TokenType.Identifier))
         {
-            var typeNode = ParseType(false, false);
-
-            if (IsPrimitiveType(Previous()))
-                expr = typeNode;
-            else expr = new IdentifierExpressionNode(typeNode.Name); // variable access
+             expr = new IdentifierNode(location.Value, location);
         }
-        else throw Error(Peek(), $"Expect expression, found '{Peek().Value}'.");
+        else throw Error(Peek(), $"Expect expression, found '{location.Value}'.");
 
-        // Postfix handling: .Member, [Index], (Args)
+        location = Peek();
+        
+        // postfix: .Member, [Index], (Args)
         while (true)
         {
             // Call: func(arg)
             if (Match(TokenType.OpenParen))
             {
                 var args = ParseArguments();
-                expr = new CallExpressionNode { Callee = expr, Arguments = args };
+                expr = new CallExpressionNode(expr, args, location);
             }
             // Member Access: obj.Field
             else if (Match(TokenType.Dot))
             {
                 var member = Consume(TokenType.Identifier, "Expect member name.").Value;
-                
-                expr = new MemberAccessExpressionNode { Object = expr, MemberName = member };
+                expr = new MemberAccessExpressionNode(expr, member, location);
             }
             // Indexer: arr[i]
             else if (Match(TokenType.OpenBracket))
             {
                 var index = ParseExpression();
                 Consume(TokenType.CloseBracket, "Expect ']'.");
-                expr = new IndexExpressionNode { Object = expr, Index = index };
+                expr = new IndexExpressionNode(expr, index, location);
             }
             else break;
         }
 
         return expr;
-    }
-    
-    private bool IsVariableDeclaration()
-    {
-        // Must start with Type
-        var idx = _current;
-        if (idx >= _tokens.Count) return false;
-        
-        // 1. Check Primitive
-        if (IsPrimitiveType(_tokens[idx])) idx++;
-        // 2. Or Identifier (potentially Generic)
-        else if (_tokens[idx].Type == TokenType.Identifier)
-        {
-            idx++;
-            if (idx < _tokens.Count && _tokens[idx].Type == TokenType.Less)
-            {
-                return false; // Identifier followed by < but not generic -> likely expression "x < y"
-            }
-        }
-        else return false;
-
-        // 3. Modifiers [] *
-        while (idx < _tokens.Count)
-        {
-            if (_tokens[idx].Type == TokenType.OpenBracket)
-            {
-                if (idx + 1 < _tokens.Count && _tokens[idx+1].Type == TokenType.CloseBracket) idx += 2;
-                else return false; // [expr] -> Index access, not declaration
-            }
-            else if (_tokens[idx].Type == TokenType.Star) idx++;
-            else break;
-        }
-
-        // 4. Must follow by Identifier (variable name)
-        if (idx < _tokens.Count && _tokens[idx].Type == TokenType.Identifier) return true;
-
-        return false;
     }
     
     private bool IsUseDeclaration()
@@ -435,77 +378,88 @@ public sealed class Parser
             if (Previous().Type == TokenType.Public) isPublic = true;
         }
         
-        Consume(TokenType.Use, "Expect 'use'.");
+        var useLocation = Consume(TokenType.Use, "Expect 'use'.");
         var name = Consume(TokenType.Identifier, "Expect module.").Value;
         
         while (Match(TokenType.Dot)) { name += "." + Consume(TokenType.Identifier, "Expect id.").Value; }
-        Consume(TokenType.Semicolon, "Expect ';'.");
+        Consume(TokenType.Semicolon, "Expect ';' after 'use'.");
         
-        return new() { ModuleName = name, IsGlobal = isGlobal, IsPublic = isPublic };
+        return new(name, isPublic, isGlobal, useLocation);
     }
 
     private BlockStatementNode ParseBlock()
     {
-        var block = new BlockStatementNode();
+        var location = Consume(TokenType.OpenBrace, "Expect '{'.");
         
-        Consume(TokenType.OpenBrace, "Expect '{'.");
+        var block = new BlockStatementNode(location);
+
         while (!Check(TokenType.CloseBrace) && !IsAtEnd()) block.Statements.Add(ParseStatement());
         
         Consume(TokenType.CloseBrace, "Expect '}'.");
         return block;
     }
     
-    private VarDeclarationNode ParseParameterDeclaration(SingleModifiers singleModifiers)
+    private VarDeclarationNode ParseParameterDeclaration()
     {
-        var typeName = ConsumeType().Value;
-        var stackableModifiers = ParseTypeStackableModifiers();
-        var type = new TypeNode(typeName, stackableModifiers) { SingleModifiers = singleModifiers };
+        var singleModifiers = ParseSingleModifiers();
+
+        var location = Peek();
+        
+        if (Match(TokenType.This))
+            return new(new(string.Empty, location), string.Empty, location, null, singleModifiers) { IsThisParam = true };
+        
+        var type = Consume(TokenType.Identifier, "Expect type.");
+        var stackableModifiers = ParseStackableModifiers();
         
         var name = Consume(TokenType.Identifier, "Expect param name.").Value;
         
         ExpressionNode? init = null;
         if (Match(TokenType.Assign)) init = ParseExpression();
         
-        return new(type, name, init);
+        return new(new(type.Value, type), name, location, init, singleModifiers, stackableModifiers);
     }
     
-    private VarDeclarationNode ParseVarDeclaration(TypeNode type)
+    private VarDeclarationNode ParseVarDeclaration(IdentifierNode type)
     {
         var name = Consume(TokenType.Identifier, "Expect var name.").Value;
         
         ExpressionNode? init = null;
         if (Match(TokenType.Assign)) init = ParseExpression();
         
-        Consume(TokenType.Semicolon, "Expect ';'.");
-        return new(type, name, init);
+        Consume(TokenType.Semicolon, "Expect ';' after variable declaration.");
+        return new(type, name, type.Location, init);
     }
 
     private IfStatementNode ParseIfStatement()
     {
-        Consume(TokenType.OpenParen, "Expect '('.");
+        var location = Consume(TokenType.If, "Expect 'if' statement.");
+        
+        Consume(TokenType.OpenParen, "Expect '(' before if condition.");
         var cond = ParseExpression();
-        Consume(TokenType.CloseParen, "Expect ')'.");
+        Consume(TokenType.CloseParen, "Expect ')' after if condition.");
         
         var then = ParseStatement();
         var el = Match(TokenType.Else) ? ParseStatement() : null;
         
-        return new() { Condition = cond, ThenBranch = then, ElseBranch = el };
+        return new(cond, then, location, el);
     }
 
     private ReturnStatementNode ParseReturnStatement()
     {
+        var location = Consume(TokenType.Return, "Expect 'return' statement.");
+        
         ExpressionNode? val = null;
         if (!Check(TokenType.Semicolon)) val = ParseExpression();
         
-        Consume(TokenType.Semicolon, "Expect ';'.");
-        return new() { Value = val };
+        Consume(TokenType.Semicolon, "Expect ';' after return.");
+        return new(location, val);
     }
 
     private ExpressionStatementNode ParseExpressionStatement()
     {
         var expr = ParseExpression();
-        Consume(TokenType.Semicolon, "Expect ';'.");
-        return new() { Expression = expr };
+        Consume(TokenType.Semicolon, "Expect ';' after expression statement.");
+        return new(expr, expr.Location);
     }
 
     private List<ExpressionNode> ParseArguments()
@@ -513,7 +467,7 @@ public sealed class Parser
         var args = new List<ExpressionNode>();
         if (!Check(TokenType.CloseParen)) do { args.Add(ParseExpression()); } while (Match(TokenType.Comma));
         
-        Consume(TokenType.CloseParen, "Expect ')'.");
+        Consume(TokenType.CloseParen, "Expect ')' after arguments.");
         return args;
     }
 
@@ -524,11 +478,7 @@ public sealed class Parser
     private Token Peek() => _tokens[_current];
     private Token Previous() => _tokens[_current - 1];
     private Token Consume(TokenType type, string msg) => Check(type) ? Advance() : throw Error(Peek(), msg);
-    private Token Consumes(string msg, params TokenType[] types) { foreach(var t in types) if(Check(t)) return Advance(); throw Error(Peek(), msg); }
     
-    private Token ConsumeType() => Consumes("Expect type.", TokenType.Identifier, TokenType.Int, TokenType.UInt, TokenType.Float, TokenType.Bool, TokenType.String, TokenType.Char, TokenType.Byte, TokenType.Void);
-    private static bool IsPrimitiveType(Token t) => t.Type is TokenType.Int or TokenType.UInt or TokenType.Float or TokenType.Bool or TokenType.String or TokenType.Char or TokenType.Byte or TokenType.Void;
-
     private ParseException Error(Token token, string message)
     {
         Console.ForegroundColor = ConsoleColor.Red;
@@ -536,12 +486,6 @@ public sealed class Parser
         Console.ResetColor();
         _hadError = true;
         return new();
-    }
-    
-    private void Synchronize()
-    {
-        Advance();
-        while (!IsAtEnd()) { if (Previous().Type == TokenType.Semicolon) return; if (Peek().Type is TokenType.Struct or TokenType.Var or TokenType.Return) return; Advance(); }
     }
     
     private sealed class ParseException : Exception;

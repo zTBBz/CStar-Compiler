@@ -1,20 +1,20 @@
 ﻿using CStarCompiler;
-using CStarCompiler.CodeGeneration;
 using CStarCompiler.Lexing;
+using CStarCompiler.Logs;
 using CStarCompiler.Parsing;
+using CStarCompiler.Parsing.Nodes.Modules;
+using CStarCompiler.SemanticAnalyze;
 
 var files = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.cstar");
 
 var lexer = new Lexer();
 var parser = new Parser();
-var generator = new CodeGenerator();
-var writer = new ProjectWriter();
-var dublicateAnalyzer = new DublicateAnalyzer();
+var ast = new List<ModuleNode>();
+
+var fail = false;
 
 foreach (var file in files)
 {
-    Console.WriteLine($"Compiling: {Path.GetFileName(file)}...");
-    
     var sourceCode = File.ReadAllText(file);
     var tokens = lexer.Tokenize(sourceCode);
     
@@ -24,19 +24,20 @@ foreach (var file in files)
         continue;
     }
 
-    var ast = parser.Parse(tokens, file);
+    var module = parser.Parse(tokens, file);
     
-    if (ast == null) continue;
-    
-    if (!dublicateAnalyzer.Analyze(ast)) continue;
-
-    var unit = generator.GenerateUnit(ast);
-
-    writer.AddCompilationUnit(unit);
-    Console.WriteLine("Code generated successfully.\n");
+    if (module != null) ast.Add(module);
+    else fail = true;
 }
 
-writer.WriteToDisk(Path.Combine(Directory.GetCurrentDirectory(), ".output"));
+if (!fail)
+{
+    var semanticAnalyzer = new SemanticAnalyzer();
+    semanticAnalyzer.Analyze(ast);
+    
+    CompilerLogger.WriteLogs();
+}
 
-Console.WriteLine("Compilation finished.");
 Console.ReadLine();
+
+// writer.WriteToDisk(Path.Combine(Directory.GetCurrentDirectory(), ".output"));

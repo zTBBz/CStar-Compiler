@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CStarCompiler", "CStarCompiler\CStarCompiler.csproj", "{AB6E8B42-8C89-47E9-83CD-E77819DE9B52}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CStarCompiler.Tests", "CStarCompiler.Tests\CStarCompiler.Tests.csproj", "{C673D08A-7640-4F9F-8A44-D3CA78DF8105}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{AB6E8B42-8C89-47E9-83CD-E77819DE9B52}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AB6E8B42-8C89-47E9-83CD-E77819DE9B52}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AB6E8B42-8C89-47E9-83CD-E77819DE9B52}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C673D08A-7640-4F9F-8A44-D3CA78DF8105}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C673D08A-7640-4F9F-8A44-D3CA78DF8105}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C673D08A-7640-4F9F-8A44-D3CA78DF8105}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C673D08A-7640-4F9F-8A44-D3CA78DF8105}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

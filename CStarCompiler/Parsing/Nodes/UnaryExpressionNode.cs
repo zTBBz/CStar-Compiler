@@ -1,8 +1,9 @@
+using CStarCompiler.Lexing;
 using CStarCompiler.Parsing.Nodes.Base;
 
 namespace CStarCompiler.Parsing.Nodes;
 
-public class UnaryExpressionNode(OperatorType operatorType, ExpressionNode operand) : ExpressionNode
+public sealed class UnaryExpressionNode(OperatorType operatorType, ExpressionNode operand, Token location) : ExpressionNode(location)
 {
     public readonly OperatorType Operator = operatorType;
     public readonly ExpressionNode Operand = operand;

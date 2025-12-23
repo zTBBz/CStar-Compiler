@@ -26,6 +26,4 @@ public enum OperatorType : byte
     BitOr = TokenType.BitOr,          // |
     BitXor = TokenType.BitXor,         // ^
     BitNot = TokenType.BitNot,         // ~
-    
-    Arrow = TokenType.Arrow,          // => (Syntactic sugar / lambda)
 }

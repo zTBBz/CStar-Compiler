@@ -1,5 +1,4 @@
-using System.Text;
-using CStarCompiler.CodeGeneration;
+/*using System.Text;
 
 namespace CStarCompiler;
 
@@ -21,4 +20,4 @@ public sealed class ProjectWriter
         File.WriteAllText(sourcePath, sb.ToString());
         Console.WriteLine($"[Write to Disk] {sourcePath}");
     }
-}
+}*/

@@ -1,9 +1,12 @@
+using CStarCompiler.Lexing;
 using CStarCompiler.Parsing.Nodes.Base;
 
 namespace CStarCompiler.Parsing.Nodes;
 
-public class LiteralExpressionNode : ExpressionNode
+public sealed class LiteralExpressionNode(object value, string type, Token location) : ExpressionNode(location)
 {
-    public object Value { get; set; }
-    public string Type { get; set; } // int, string, etc.
+    public readonly object Value = value;
+    
+    // int, string, etc.
+    public readonly string Type = type;
 }

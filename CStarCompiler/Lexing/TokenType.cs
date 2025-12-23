@@ -13,13 +13,16 @@ public enum TokenType : byte
     StringLiteral,
     CharLiteral,
 
-    Module,
+    Var,
+    
     Struct,
     Contract,
     
     This,
     Ref,
+    NoWrite,
     
+    Module,
     Use,
     Public,
     Internal,
@@ -28,24 +31,9 @@ public enum TokenType : byte
     Return,
     If,
     Else,
-    For,
-    While,
-    Where,
-    
-    Var,
-    Const,
-    Void,
-    Int,
-    UInt,
-    Float,
-    Bool,
-    Char,
-    String,
-    Byte,
     
     True,
     False,
-    Null,
     
     // Operators
     Plus,           // +

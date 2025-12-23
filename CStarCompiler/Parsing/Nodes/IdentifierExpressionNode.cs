@@ -1,8 +1,9 @@
+using CStarCompiler.Lexing;
 using CStarCompiler.Parsing.Nodes.Base;
 
 namespace CStarCompiler.Parsing.Nodes;
 
-public class IdentifierExpressionNode(string name) : ExpressionNode
+public sealed class IdentifierNode(string name, Token location) : ExpressionNode(location)
 {
     public string Name { get; set; } = name;
 }

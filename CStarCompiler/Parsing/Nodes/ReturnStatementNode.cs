@@ -1,8 +1,9 @@
+using CStarCompiler.Lexing;
 using CStarCompiler.Parsing.Nodes.Base;
 
 namespace CStarCompiler.Parsing.Nodes;
 
-public class ReturnStatementNode : StatementNode
+public sealed class ReturnStatementNode(Token location, ExpressionNode? value = null) : StatementNode(location)
 {
-    public ExpressionNode? Value { get; set; }
+    public ExpressionNode? Value = value;
 }

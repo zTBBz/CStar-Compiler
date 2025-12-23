@@ -20,6 +20,8 @@ public sealed class Lexer
         
         "struct" => TokenType.Struct,
         "contract" => TokenType.Contract,
+
+        "var" => TokenType.Var,
         
         "ref" => TokenType.Ref,
         "this" => TokenType.This,
@@ -27,25 +29,9 @@ public sealed class Lexer
         "return" => TokenType.Return,
         "if" => TokenType.If,
         "else" => TokenType.Else,
-        "for" => TokenType.For,
-        "while" => TokenType.While,
-        "where" => TokenType.Where,
-        
-        "var" => TokenType.Var,
-        "const" => TokenType.Const,
-        
-        "void" => TokenType.Void,
-        "int" => TokenType.Int,
-        "uint" => TokenType.UInt,
-        "float" => TokenType.Float,
-        "bool" => TokenType.Bool,
-        "char" => TokenType.Char,
-        "string" => TokenType.String,
-        "byte" => TokenType.Byte,
         
         "true" => TokenType.True,
         "false" => TokenType.False,
-        "null" => TokenType.Null,
         
         _ => TokenType.Identifier
     };

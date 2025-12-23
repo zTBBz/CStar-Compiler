@@ -1,4 +1,4 @@
-using System.Text;
+/*using System.Text;
 using CStarCompiler.Parsing.Nodes;
 using CStarCompiler.Parsing.Nodes.Base;
 using CStarCompiler.Parsing.Nodes.Declarations;
@@ -7,7 +7,7 @@ using CStarCompiler.Parsing.Nodes.This;
 
 namespace CStarCompiler.CodeGeneration;
 
-public sealed class CodeGenerator
+public sealed class CodeWriter
 {
     private int _indentLevel;
     private string _currentModule = null!;
@@ -193,10 +193,6 @@ public sealed class CodeGenerator
                         };
                     else if (v.Initializer is UnaryExpressionNode { Operator: OperatorType.Star } unary)
                     {
-                        // todo: make *ptr -> value
-                        // Тут нужен семантический анализ, чтобы узнать тип ptr. 
-                        // Сейчас просто хардкодим, если ptr называется 'ptr' :) 
-                        // В реальном компиляторе тут SymbolTable.
                          typeStr = "int32_t"; 
                     }
                     else if (v.Initializer is CallExpressionNode)
@@ -204,7 +200,7 @@ public sealed class CodeGenerator
                         // Calculate<int> -> int32_t
                         typeStr = "int32_t"; 
                     }
-                    else typeStr = "auto /* inference needed */";
+                    else typeStr = "auto;
                 }
                 else typeStr = MapType(v.Type);
                 
@@ -265,7 +261,7 @@ public sealed class CodeGenerator
                 else Append(l.Value.ToString() ?? "0");
                 break;
 
-            case IdentifierExpressionNode id:
+            case IdentifierNode id: // todo: remove?
                 Append(id.Name); 
                 break;
 
@@ -287,10 +283,6 @@ public sealed class CodeGenerator
             case MemberAccessExpressionNode m:
                 GenExpression(m.Object);
                 Append($".{m.MemberName}");
-                break;
-            
-            case ThisNode _:
-                Append("this");
                 break;
 
             case IndexExpressionNode idx:
@@ -425,3 +417,4 @@ public sealed class CodeGenerator
     private void Indent() => _indentLevel++;
     private void Unindent() => _indentLevel--;
 }
+*/
