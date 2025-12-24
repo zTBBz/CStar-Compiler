@@ -30,7 +30,7 @@ public static class CompilerLogger
         => compilerLogCode switch
         {
             CompilerLogCode.ParserUnknownToken => "Unknown token",
-            CompilerLogCode.ParserExpectToken => "Parser expects token",
+            CompilerLogCode.ParserExpectToken => "Parser expects token, but get",
             
             CompilerLogCode.ModuleImportNotExisted => "Module import not exist",
             CompilerLogCode.ModuleImportRecursive => "Recursive module imports", // todo: remove
@@ -62,7 +62,7 @@ public static class CompilerLogger
             Console.ForegroundColor = ConsoleColor.DarkCyan;
             foreach (var info in infos)
             {
-                var message = $"[INFO]: {info.Message}. '{info.Location.Value}' at line {info.Location.Line}, column {info.Location.Column}. {info.Info}";
+                var message = $"[INFO]: {info.Message} '{info.Location.Value}' at line {info.Location.Line}, column {info.Location.Column}. {info.Info}";
                 
                 Console.WriteLine(message);
             }
@@ -77,7 +77,7 @@ public static class CompilerLogger
             Console.ForegroundColor = ConsoleColor.Red;
             foreach (var error in errors)
             {
-                var message = $"[ERROR]: {error.Message}. '{error.Location.Value}' at line {error.Location.Line}, column {error.Location.Column}. {error.Info}";
+                var message = $"[ERROR]: {error.Message} '{error.Location.Value}' at line {error.Location.Line}, column {error.Location.Column}. {error.Info}";
                 
                 Console.WriteLine(message);
             }
@@ -90,7 +90,7 @@ public static class CompilerLogger
     
     public static void Clear() => _logDump.Clear();
     
-#if DEBUG // functions for tests
+    // functions for tests
     public static bool HaveLogs()
         => _logDump.Any(p => p.Value.Count != 0);
 
@@ -104,7 +104,6 @@ public static class CompilerLogger
     public static bool HaveLogCode(CompilerLogCode code, string locationValue)
         => _logDump.SelectMany(p => p.Value)
             .Any(l => l.CompilerLogCode == code && l.Location.Value == locationValue);
-#endif
     
     private readonly struct CompilerLog(CompilerLogLevel level, Token location, string message, CompilerLogCode compilerLogCode, string? info = null)
     {

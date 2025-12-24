@@ -10,17 +10,16 @@ using CStarCompiler.Shared.Logs;
 
 namespace CStarCompiler.Parsing;
 
+// todo: make error synchronization
 public sealed class Parser
 {
     private List<Token> _tokens = null!;
     private int _current;
-    private bool _hadError;
     
     public ModuleNode? Parse(List<Token> tokens)
     {
         _tokens = tokens;
         _current = 0;
-        _hadError = false;
 
         CompilerLogger.SetFile(tokens[0].File);
         
@@ -30,19 +29,20 @@ public sealed class Parser
         if (Match(TokenType.Module))
         {
             if (!TryConsume(TokenType.Identifier, "Expect module name.", out var moduleToken))
-                return null;
+                return null; // todo: by now cannot analyze module without name, later MAYBE allow to continue parse
 
             module.Identifier = new(moduleToken.Value, moduleToken);
 
             while (Match(TokenType.Dot))
             {
                 if (!TryConsume(TokenType.Identifier, "Expect module subname.", out var subname))
-                    return null;
+                    return null; // todo: by now cannot analyze module without name, later MAYBE allow to continue parse
 
                 module.Identifier.Name += "." + subname.Value;
             }
 
-            TryConsume(TokenType.Semicolon, "Expect ';' after module name.", out _);
+            if (!TryConsume(TokenType.Semicolon, "Expect ';' after module name.", out _))
+                SynchronizeToDeclarationOrIdentifier();
         }
         else
         {
@@ -66,7 +66,7 @@ public sealed class Parser
             }
         }
         
-        return _hadError ? null : module;
+        return module;
     }
 
     private SingleModifiersNode ParseSingleModifiers()
@@ -116,7 +116,7 @@ public sealed class Parser
             var previousToken = Previous();
             var previousType = Previous().Type;
             
-            // public internal combination
+            // 'public' + 'internal' combination
             if (visibility != DeclarationVisibilityModifier.Private)
                 Error(previousToken, "Expect one visibility modifier (used two or more).");
 
@@ -130,20 +130,34 @@ public sealed class Parser
 
         if (Check(TokenType.Struct)) return ParseStruct(visibility);
 
-        if (!TryConsume(TokenType.Identifier, "Expect identifier.", out var identifierLocation)) return null;
+        if (!TryConsume(TokenType.Identifier, "Expect identifier.", out var identifierLocation))
+            goto SynchronizeToFieldOrFunctionEnd;
+        
         var identifierNode = new IdentifierNode(identifierLocation.Value, identifierLocation);
         
-        if (!TryConsume(TokenType.Identifier, "Expect name.", out var nameToken)) return null;
+        if (!TryConsume(TokenType.Identifier, "Expect name.", out var nameToken))
+            goto SynchronizeToFieldOrFunctionEnd;
+        
         var name = new IdentifierNode(nameToken.Value, nameToken);
 
         if (Check(TokenType.OpenParen))
             return ParseFunction(identifierNode, name, visibility);
 
-        // Field or Global Variable
+        // field or global variable
         var field = new FieldDeclarationNode(identifierNode, name, visibility, identifierLocation);
 
-        TryConsume(TokenType.Semicolon, "Expect ';' after declaration.", out _);
+        if (!TryConsume(TokenType.Semicolon, "Expect ';' after declaration.", out _))
+            SynchronizeToDeclarationOrIdentifier(); // skip to next declaration
+        
         return field;
+        
+        SynchronizeToFieldOrFunctionEnd:
+        SynchronizeTo(TokenType.Semicolon, TokenType.CloseBrace); // skip to field/function end
+
+        // consume ';' or '}'
+        Advance();
+            
+        return null;
     }
 
     private StructDeclarationNode? ParseStruct(DeclarationVisibilityModifier visibility)
@@ -152,14 +166,19 @@ public sealed class Parser
         var structKeywordToken = Advance();
 
         if (!TryConsume(TokenType.Identifier, "Expect struct name.", out var structNameToken))
-            return null;
+            return null; // todo: by now cannot analyze struct without name, later MAYBE allow to continue parse
         
         var structName = new IdentifierNode(structNameToken.Value, structNameToken);
 
         var node = new StructDeclarationNode(structName, visibility, structKeywordToken);
 
         if (!TryConsume(TokenType.OpenBrace, "Expect '{'.", out _))
-            return null;
+        {
+            // declaration or struct end '}'
+            SynchronizeToDeclarationOrIdentifierWith(TokenType.CloseBrace);
+            
+            // don't consume '}', later consumed by 'TryConsume'
+        }
         
         while (!Check(TokenType.CloseBrace) && !IsAtEnd())
         {
@@ -167,6 +186,7 @@ public sealed class Parser
             if (declaration != null) node.Members.Add(declaration);
         }
         
+        // no need to direct synchronize 
         TryConsume(TokenType.CloseBrace, "Expect '}'.", out _);
         return node;
     }
@@ -187,22 +207,25 @@ public sealed class Parser
                 
             } while (Match(TokenType.Comma));
         }
+        
+        // no need to direct synchronize
         TryConsume(TokenType.CloseParen, "Expect ')' after function parameters.", out _);
 
         // body
-        if (Check(TokenType.OpenBrace))
-            func.Body = ParseBlock();
+        if (Check(TokenType.OpenBrace)) func.Body = ParseBlock();
         // lambda
-        else if (Match(TokenType.Arrow))
+        else if (Check(TokenType.Arrow))
         {
-            func.Body = new(Peek());
+            var lambdaLocation = Advance();
+            func.Body = new(lambdaLocation);
             
-            var expr = ParseExpression();
+            var expr = ParseExpression(); // todo: synchronize
             if (expr == null) return null;
             
-            func.Body.Statements.Add(new ReturnStatementNode(expr.Location, expr));
+            func.Body.Statements.Add(new ReturnStatementNode(lambdaLocation, expr));
             TryConsume(TokenType.Semicolon, "Expect ';' after function lambda.", out _);
         }
+        // no need to direct synchronize
         else TryConsume(TokenType.Semicolon, "Expect body or ';'.", out _);
 
         return func;
@@ -450,6 +473,8 @@ public sealed class Parser
 
     private UseNode? ParseUse()
     {
+        // no need to direct synchronize ANYTHING ('use' node isolated in 'Parse')
+        
         bool isGlobal = false, isPublic = false;
         while (Match(TokenType.Global, TokenType.Public, TokenType.Internal, TokenType.At))
         {
@@ -459,7 +484,7 @@ public sealed class Parser
 
         if (!TryConsume(TokenType.Use, "Expect 'use'.", out var useLocation))
             return null;
-
+        
         if (!TryConsume(TokenType.Identifier, "Expect module name.", out var importNameToken))
             return null;
         
@@ -589,6 +614,42 @@ public sealed class Parser
         return args;
     }
 
+    private void SynchronizeTo(params TokenType[] skipToThis)
+    {
+        while (true)
+        {
+            foreach (var t in skipToThis)
+                if (Check(t)) return;
+            
+            Advance();
+        }
+    }
+    
+    private void SynchronizeToDeclarationOrIdentifierWith(params TokenType[] skipToThis)
+    {
+        while (true)
+        {
+            if (Check(TokenType.Struct)) return;
+            if (Check(TokenType.Identifier)) return;
+            
+            foreach (var t in skipToThis)
+                if (Check(t)) return;
+            
+            Advance();
+        }
+    }
+    
+    private void SynchronizeToDeclarationOrIdentifier()
+    {
+        while (true)
+        {
+            if (Check(TokenType.Struct)) return;
+            if (Check(TokenType.Identifier)) return;
+            
+            Advance();
+        }
+    }
+    
     private bool Match(params TokenType[] types) { foreach (var t in types) if (Check(t)) { Advance(); return true; } return false; }
     private bool Check(TokenType type) => !IsAtEnd() && Peek().Type == type;
     private Token Advance() { if (!IsAtEnd()) _current++; return Previous(); }
@@ -609,9 +670,5 @@ public sealed class Parser
         return false;
     }
     
-    private void Error(Token token, string message)
-    {
-        CompilerLogger.DumpError(CompilerLogCode.ParserExpectToken, token, message);
-        _hadError = true;
-    }
+    private void Error(Token token, string message) => CompilerLogger.DumpError(CompilerLogCode.ParserExpectToken, token, message);
 }

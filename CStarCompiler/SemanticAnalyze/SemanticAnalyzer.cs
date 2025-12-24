@@ -46,7 +46,8 @@ public sealed class SemanticAnalyzer
         _context.ModuleTable.AnalyzeDependencies();
         
         // analyze structs
-        _context.StructTable.AnalyzeFields();
+        _context.StructTable.AnalyzeFieldsExisting();
+        _context.StructTable.AnalyzeFieldsRecursion();
     }
     
     public void Clear()
@@ -55,5 +56,6 @@ public sealed class SemanticAnalyzer
         _context.StructTable.Clear();
         _context.ModuleTable.Clear();
         _context.LocationTable.Clear();
+        _context.VisibilityTable.Clear();
     }
 }

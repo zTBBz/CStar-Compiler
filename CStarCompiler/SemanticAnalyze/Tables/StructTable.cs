@@ -2,6 +2,7 @@ using CStarCompiler.Parsing.Nodes.Declarations;
 using CStarCompiler.SemanticAnalyze.Units.Declarations;
 using CStarCompiler.SemanticAnalyze.Units.Module;
 using CStarCompiler.SemanticAnalyze.Units.Type;
+using CStarCompiler.Shared;
 using CStarCompiler.Shared.Logs;
 
 namespace CStarCompiler.SemanticAnalyze.Tables;
@@ -10,19 +11,19 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
 {
     private readonly Dictionary<string, Dictionary<string, StructUnit>> _structs = [];
     
-    private readonly Dictionary<string, List<string>> _structToModules = [];
+    private readonly StructGraph _structGraph = new();
     
     public void AddStruct(string moduleName, StructDeclarationNode structNode)
     {
         var structUnit = new StructUnit(structNode.Identifier.Name);
         
-        // module not contains any structs early
+        // create dict if module not contains any structs early
         if (!_structs.TryGetValue(moduleName, out var structDict))
         {
             var structs = new Dictionary<string, StructUnit> { { structUnit.Name, structUnit } };
             _structs.Add(moduleName, structs);
         }
-        // struct declaration duplicate
+        // check for struct declaration duplicate
         else if (structDict.TryGetValue(structUnit.Name, out var originalStruct))
         {
             var originalLocation = _context.LocationTable.GetLocation(originalStruct);
@@ -35,13 +36,11 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
         // ok, add to structs
         else structDict.Add(structUnit.Name, structUnit);
 
-        if (!_structToModules.TryGetValue(structUnit.Name, out var modules))
-            _structToModules.Add(structUnit.Name, [moduleName]);
-        else modules.Add(moduleName);
-
+        // add to graph for later recursive fields analyze
+        _structGraph.AddStruct(structUnit);
         _context.LocationTable.AddLocation(structUnit, structNode.Identifier.Location);
 
-        // inner structs add to table after fields and functions
+        // inner structs recursive adds to table after fields and functions
         var nestedStructs = new List<StructDeclarationNode>();
         
         // struct fields and functions 
@@ -69,12 +68,14 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
     {
         structUnit.Fields ??= new();
         
+        // by now no need to check, it checks later in graph sorting
+        
         // simple recursive type field
-        if (fieldNode.Type.Name == structUnit.Name)
+        /*if (fieldNode.Type.Name == structUnit.Name)
         {
             CompilerLogger.DumpError(CompilerLogCode.StructFieldRecursive, fieldNode.Type.Location);
             return;
-        }
+        }*/
 
         // field name shadow declared struct type
         if (fieldNode.Identifier.Name == structUnit.Name)
@@ -100,13 +101,14 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
         _context.LocationTable.AddLocation(field, fieldNode.Location);
     }
 
-    public void AnalyzeFields()
+    public void AnalyzeFieldsExisting()
     {
         foreach (var (moduleName, dict) in _structs)
         {
             var module = _context.ModuleTable.GetModule(moduleName);
+            var file = _context.LocationTable.GetLocation(module).File;
             
-            CompilerLogger.SetFile(_context.LocationTable.GetLocation(module).File);
+            CompilerLogger.SetFile(file);
             
             foreach (var (_, structUnit) in dict)
             {
@@ -117,20 +119,20 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
                     // todo: add visibility check (private, public, internal)
                     
                     // field type existing in declared module
-                    if (!IsStructExist(moduleName, field.Type.Name))
+                    if (!TryGetStruct(moduleName, field.Type.Name, out var fieldStruct))
                     {
                         var imports = module.Imports;
                         if (imports == null) goto TypeNotExist;
                         
                         // field type existing in imported modules
                         foreach (var import in imports)
-                            if (IsStructExist(import.Name, field.Type.Name)) goto TypeExist;
+                            if (TryGetStruct(import.Name, field.Type.Name, out fieldStruct)) goto TypeExist;
                         
                         goto TypeNotExist;
                     }
 
                     TypeExist:
-                    AnalyzeDeepRecursiveField(moduleName, structUnit);
+                    _structGraph.AddField(structUnit, fieldStruct!);
                     continue;
                     
                     TypeNotExist:
@@ -139,59 +141,11 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
             }
         }
     }
+
+    public void AnalyzeFieldsRecursion() => _structGraph.Sort(_context.LocationTable);
     
-    private void AnalyzeDeepRecursiveField(string moduleName, StructUnit structUnit)
-    {
-        foreach (var (_, field) in structUnit.Fields!)
-        {
-            var fieldType = field.Type.Name;
-
-            if (!Step(structUnit.Name, fieldType)) continue;
-            
-            CompilerLogger.DumpError(CompilerLogCode.StructFieldRecursive,
-                _context.LocationTable.GetLocation(field), $"Recursion in '{structUnit.Name}' struct.");
-            
-            return;
-        }
-        
-        bool Step(string structName, string fieldType)
-        {
-            if (fieldType == structName) return true;
-
-            if (!IsStructExist(moduleName, fieldType))
-            {
-                var imports = _context.ModuleTable.GetModuleImports(moduleName);
-                if (imports == null) return false; // field type not exist in imports
-        
-                foreach (var import in imports)
-                {
-                    if (!TryGetStruct(import.Name, fieldType, out var fieldTypeStruct)) continue;
-
-                    var fields = fieldTypeStruct!.Fields;
-                    if (fields == null) return false; // field type not have fields
-                
-                    foreach (var (_, field) in fields)
-                        if (Step(structName, field.Type.Name)) return true;
-                }
-            }
-            else
-            {
-                var fields = GetStructFields(moduleName, fieldType);
-                if (fields == null) return false;
-                
-                foreach (var field in fields)
-                    if (Step(structName, field.Value.Type.Name)) return true;
-            }
-            
-            return false;
-        }
-    }
-
     private Dictionary<string, VariableUnit>? GetStructFields(string moduleName, string structName)
         => _structs[moduleName][structName].Fields;
-
-    private bool TryGetStructModules(string structName, out List<string>? modules)
-        => _structToModules.TryGetValue(structName, out modules);
     
     private bool IsStructHaveFields(string moduleName, string structName)
         => _structs.TryGetValue(moduleName, out var structs)
@@ -211,5 +165,71 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
         return true;
     }
     
-    public void Clear() => _structs.Clear();
+    public void Clear()
+    {
+        _structs.Clear();
+        _structGraph.Clear();
+    }
+    
+    private class StructGraph
+    {
+        private readonly Dictionary<StructUnit, List<StructUnit>> _values = [];
+        
+        public void AddStruct(StructUnit structUnit) => _values.TryAdd(structUnit, []);
+        
+        public void AddField(StructUnit structUnit, StructUnit field)
+        {
+            AddStruct(structUnit);
+            AddStruct(field);
+            _values[structUnit].Add(field);
+        }
+
+        public List<StructUnit>? Sort(LocationTable table)
+        {
+            var visited = new Dictionary<StructUnit, GraphVisitState>();
+            var sorted = new List<StructUnit>();
+    
+            foreach (var structUnit in _values.Keys) visited[structUnit] = GraphVisitState.NotVisited;
+            
+            foreach (var structUnit in _values.Keys)
+            {
+                var moduleLocation = table.GetLocation(structUnit);
+                
+                CompilerLogger.SetFile(moduleLocation.File);
+
+                if (visited[structUnit] != GraphVisitState.NotVisited) continue;
+                if (Step(structUnit, visited, sorted)) continue;
+                    
+                CompilerLogger.DumpError(CompilerLogCode.StructFieldRecursive, moduleLocation);
+                return null;
+            }
+            
+            // from dependents to independents
+            return sorted; 
+        }
+        
+        private bool Step(StructUnit structUnit, Dictionary<StructUnit, GraphVisitState> visited, List<StructUnit> result)
+        {
+            switch (visited[structUnit])
+            {
+                // cycle
+                case GraphVisitState.Visiting: return false;
+                case GraphVisitState.Visited: return true;
+            }
+
+            visited[structUnit] = GraphVisitState.Visiting;
+    
+            if (_values.TryGetValue(structUnit, out var dependencies))
+            {
+                foreach (var dependency in dependencies)
+                    if (!Step(dependency, visited, result)) return false;
+            }
+    
+            visited[structUnit] = GraphVisitState.Visited;
+            result.Add(structUnit);
+            return true;
+        }
+        
+        public void Clear() => _values.Clear();
+    }
 }
