@@ -1,13 +1,13 @@
-using CStarCompiler.SemanticAnalyze.Units;
 using CStarCompiler.SemanticAnalyze.Units.Type;
+using CStarCompiler.Shared;
 
-namespace CStarCompiler.SemanticAnalyze.Declarations;
+namespace CStarCompiler.SemanticAnalyze.Units.Declarations;
 
 public sealed class StructUnit(string name) : SemanticUnit
 {
     public readonly string Name = name;
     
-    public VisibilityModifier Visibility = VisibilityModifier.Private;
+    public DeclarationVisibilityModifier DeclarationVisibility = DeclarationVisibilityModifier.Private;
 
     public Dictionary<string, VariableUnit>? Fields;
     public Dictionary<string, FunctionUnit>? Functions;

@@ -5,6 +5,8 @@ namespace CStarCompiler.Lexing;
 public sealed class Lexer
 {
     private string _source = null!;
+    private string _currentFile = string.Empty;
+    
     private int _position;
     private int _line;
     private int _column;
@@ -36,8 +38,9 @@ public sealed class Lexer
         _ => TokenType.Identifier
     };
     
-    public List<Token> Tokenize(string source)
+    public List<Token> Tokenize(string file, string source)
     {
+        _currentFile = file;
         _source = source;
         _position = 0;
         _line = 1;
@@ -236,10 +239,10 @@ public sealed class Lexer
                     break;
             }
 
-            void AddToken(TokenType type, string? val = null) => tokens.Add(new(type, startLine, startCol, val ?? string.Empty));
+            void AddToken(TokenType type, string? val = null) => tokens.Add(new(_currentFile, startLine, startCol, type, val ?? string.Empty));
         }
 
-        tokens.Add(new(TokenType.Eof, _line, _column, string.Empty));
+        tokens.Add(new(_currentFile, _line, _column, TokenType.Eof, string.Empty));
         return tokens;
     }
     
@@ -256,7 +259,7 @@ public sealed class Lexer
         }
 
         var text = sb.ToString();
-        return new(GetKeyword(text), startLine, startCol, text);
+        return new(_currentFile, startLine, startCol, GetKeyword(text), text);
     }
 
     private Token ReadNumber()
@@ -292,7 +295,7 @@ public sealed class Lexer
             Advance();
         }
 
-        return new(isFloat ? TokenType.FloatLiteral : TokenType.IntegerLiteral, startLine, startCol, sb.ToString());
+        return new(_currentFile, startLine, startCol, isFloat ? TokenType.FloatLiteral : TokenType.IntegerLiteral, sb.ToString());
     }
 
     private Token ReadString()
@@ -318,10 +321,10 @@ public sealed class Lexer
         if (Peek() == '"')
         {
             Advance();
-            return new(TokenType.StringLiteral, startLine, startCol, sb.ToString());
+            return new(_currentFile, startLine, startCol, TokenType.StringLiteral, sb.ToString());
         }
 
-        return new(TokenType.Unknown, startLine, startCol, sb.ToString());
+        return new(_currentFile, startLine, startCol, TokenType.Unknown, sb.ToString());
     }
 
     private Token ReadChar()
@@ -342,10 +345,10 @@ public sealed class Lexer
         if (Peek() == '\'')
         {
             Advance();
-            return new(TokenType.CharLiteral, startLine, startCol, c.ToString());
+            return new(_currentFile, startLine, startCol, TokenType.CharLiteral, c.ToString());
         }
 
-        return new(TokenType.Unknown, startLine, startCol, c.ToString());
+        return new(_currentFile, startLine, startCol, TokenType.Unknown, c.ToString());
     }
 
     private char Peek() => _position >= _source.Length ? '\0' : _source[_position];

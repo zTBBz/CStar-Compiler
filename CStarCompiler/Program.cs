@@ -1,9 +1,8 @@
-﻿using CStarCompiler;
-using CStarCompiler.Lexing;
-using CStarCompiler.Logs;
+﻿using CStarCompiler.Lexing;
 using CStarCompiler.Parsing;
 using CStarCompiler.Parsing.Nodes.Modules;
 using CStarCompiler.SemanticAnalyze;
+using CStarCompiler.Shared.Logs;
 
 var files = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.cstar");
 
@@ -16,15 +15,9 @@ var fail = false;
 foreach (var file in files)
 {
     var sourceCode = File.ReadAllText(file);
-    var tokens = lexer.Tokenize(sourceCode);
-    
-    if (!LexemAnalyser.Validate(tokens, file)) 
-    {
-        Console.WriteLine("Lexing failed.");
-        continue;
-    }
+    var tokens = lexer.Tokenize(file, sourceCode);
 
-    var module = parser.Parse(tokens, file);
+    var module = parser.Parse(tokens);
     
     if (module != null) ast.Add(module);
     else fail = true;

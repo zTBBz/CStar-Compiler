@@ -1,11 +1,10 @@
 using CStarCompiler.Lexing;
-using CStarCompiler.Logs;
 using CStarCompiler.Parsing.Nodes.Declarations;
 using CStarCompiler.Parsing.Nodes.Modules;
-using CStarCompiler.SemanticAnalyze.Declarations;
 using CStarCompiler.SemanticAnalyze.Units;
 using CStarCompiler.SemanticAnalyze.Units.Module;
 using CStarCompiler.SemanticAnalyze.Units.Type;
+using CStarCompiler.Shared.Logs;
 
 namespace CStarCompiler.SemanticAnalyze;
 
@@ -17,9 +16,12 @@ public sealed class SemanticAnalyzer
     
     public void Analyze(List<ModuleNode> modules)
     {
+        
         // collect data
         foreach (var module in modules)
         {
+            CompilerLogger.SetFile(module.Location.File);
+            
             _context.ModuleTable.AddModule(module);
 
             foreach (var declaration in module.Declarations)
@@ -33,7 +35,7 @@ public sealed class SemanticAnalyzer
                         // todo
                         break;
                     case StructDeclarationNode structDeclarationNode:
-                        _context.StructTable.AddStruct(module.ModuleName, structDeclarationNode);
+                        _context.StructTable.AddStruct(module.Identifier.Name, structDeclarationNode);
                         break;
                 }
             }
@@ -42,9 +44,10 @@ public sealed class SemanticAnalyzer
         // analyze modules
         _context.ModuleTable.AnalyzeImports();
         _context.ModuleTable.AnalyzeDependencies();
+        
+        // analyze structs
+        _context.StructTable.AnalyzeFields();
     }
-
-    public void PrintGraph() => _context.ModuleTable.PrintGraph();
     
     public void Clear()
     {

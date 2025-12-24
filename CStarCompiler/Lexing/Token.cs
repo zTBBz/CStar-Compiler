@@ -1,11 +1,11 @@
 namespace CStarCompiler.Lexing;
 
-public sealed class Token(TokenType type, int line, int column, string value)
+public sealed class Token(string file, int line, int column, TokenType type, string value)
 {
-    public TokenType Type { get; } = type;
-    public string Value { get; } = value;
-    public int Line { get; } = line;
-    public int Column { get; } = column;
-
-    public override string ToString() => $"{Type}: '{Value}' at {Line}:{Column}";
+    public readonly TokenType Type = type;
+    public readonly string Value = value;
+    
+    public readonly string File = file;
+    public readonly int Line = line;
+    public readonly int Column  = column;
 }

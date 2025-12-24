@@ -1,9 +1,9 @@
 using CStarCompiler.Lexing;
+using CStarCompiler.Shared;
 
 namespace CStarCompiler.Parsing.Nodes.Base;
 
-public abstract class DeclarationNode(Token location, bool isPublic = false, bool isInternal = false) : AstNode(location)
+public abstract class DeclarationNode(DeclarationVisibilityModifier visibility, Token location) : AstNode(location)
 {
-    public bool IsPublic { get; set; } = isPublic;
-    public bool IsInternal { get; set; } = isInternal;
+    public DeclarationVisibilityModifier Visibility = visibility;
 }
