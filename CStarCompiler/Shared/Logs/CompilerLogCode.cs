@@ -12,10 +12,13 @@ public enum CompilerLogCode
     ModuleDeclarationDuplicate,
     
     TypeNotFound,
+    TypeUnused,
     
     StructDeclarationDuplicate,
     
     StructFieldRecursive,
     StructFieldNameDuplicate,
     StructFieldNameShadowStructType,
+    
+    FunctionDeclarationDuplicate,
 }

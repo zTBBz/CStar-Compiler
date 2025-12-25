@@ -5,6 +5,17 @@ namespace CStarCompiler.Shared.Logs;
 public static class CompilerLogger
 {
     private static readonly Dictionary<string, List<CompilerLog>> _logDump = [];
+
+    public static class Common
+    {
+        public static void DumpTypeNotFound(string typeName, Token location)
+        {
+            var message = $"Type '{typeName}' could not be found";
+            // todo: analyze modules for similar types and make hint
+            
+            DumpError(CompilerLogCode.TypeNotFound, location, message);
+        }
+    }
     
     public static void DumpInfo(CompilerLogCode compilerLogCode, Token location, string message, string? hint = null)
         => DumpLog(CompilerLogLevel.Info, location, compilerLogCode, message, hint);

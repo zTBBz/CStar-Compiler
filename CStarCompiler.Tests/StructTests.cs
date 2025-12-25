@@ -318,6 +318,17 @@ struct MyStruct7
     MyStruct DeepRecursiveField;
 }
 ");
+    
+    [Test]
+    public void DeclarationUnused()
+        => Tester.AnalyzeWithCode(CompilerLogCode.TypeUnused, @"
+module Main;
 
+struct MyStruct
+{
+     
+}
+");
+    
     
 }
