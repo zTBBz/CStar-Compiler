@@ -14,7 +14,6 @@ public sealed class SemanticAnalyzer
     
     public void Analyze(List<ModuleNode> modules)
     {
-        
         // collect data
         foreach (var module in modules)
         {
@@ -41,8 +40,10 @@ public sealed class SemanticAnalyzer
         _context.ModuleTable.AnalyzeImports();
         
         // analyze structs
-        _context.StructTable.AnalyzeFieldsExisting();
-        _context.StructTable.AnalyzeFieldsRecursion();
+        _context.StructTable.AnalyzeFieldsTypes();
+        _context.StructTable.AnalyzeTypeDependencies();
+        
+        _context.StructTable.ExcludeUnusedStructs();
     }
     
     public void Clear()
@@ -50,6 +51,6 @@ public sealed class SemanticAnalyzer
         _context.StructTable.Clear();
         _context.ModuleTable.Clear();
         _context.LocationTable.Clear();
-        _context.VisibilityTable.Clear();
+        _context.ScopeTable.Clear();
     }
 }
