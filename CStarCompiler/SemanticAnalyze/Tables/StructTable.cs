@@ -13,6 +13,9 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
     
     private readonly StructGraph _structGraph = new();
     
+    private List<StructUnit>? _sortedStructs;
+    private List<StructUnit>? _unusedStructs;
+    
     public void AddStruct(string moduleName, StructDeclarationNode structNode)
     {
         var structUnit = new StructUnit(structNode.Identifier.Name);
@@ -27,9 +30,9 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
         else if (structDict.TryGetValue(structUnit.Name, out var originalStruct))
         {
             var originalLocation = _context.LocationTable.GetLocation(originalStruct);
-            var info = $"Original struct at {CompilerLogger.FormatLocation(originalLocation)}";
+            var hint = $"Original struct at {CompilerLogger.FormatLocation(originalLocation)}";
             
-            CompilerLogger.DumpError(CompilerLogCode.StructDeclarationDuplicate, structNode.Identifier.Location, info);
+            CompilerLogger.DumpError(CompilerLogCode.StructDeclarationDuplicate, structNode.Identifier.Location, hint);
             
             return; // don't check fields, struct not saved to table
         }
@@ -100,12 +103,10 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
         _context.LocationTable.AddLocation(field, fieldNode.Location);
     }
 
-    public void AnalyzeFieldsExisting()
+    public void AnalyzeFieldsTypes()
     {
         foreach (var (moduleName, dict) in _structs)
         {
-            var module = _context.ModuleTable.GetModule(moduleName);
-            
             foreach (var (_, structUnit) in dict)
             {
                 if (structUnit.Fields == null) continue;
@@ -116,33 +117,37 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
                     
                     // field type existing in declared module
                     if (!TryGetStruct(moduleName, field.Type.Name, out var fieldStruct))
-                    {
-                        var imports = module.Imports;
-                        if (imports == null) goto TypeNotExist;
-                        
-                        // field type existing in imported modules
-                        foreach (var import in imports)
-                            if (TryGetStruct(import.Name, field.Type.Name, out fieldStruct)) goto TypeExist;
-                        
-                        goto TypeNotExist;
-                    }
+                        goto TypeNotFound;
 
-                    TypeExist:
                     _structGraph.AddField(structUnit, fieldStruct!);
                     continue;
                     
-                    TypeNotExist:
-                    var message = $"Type '{field.Type.Name}' could not be found";
-                    // todo: analyze modules for similar types and make hint
-                    
-                    CompilerLogger.DumpError(CompilerLogCode.TypeNotFound,
-                        _context.LocationTable.GetLocation(field), message);
+                    TypeNotFound:
+                    CompilerLogger.Common.DumpTypeNotFound(field.Type.Name, _context.LocationTable.GetLocation(field));
                 }
             }
         }
     }
 
-    public void AnalyzeFieldsRecursion() => _structGraph.Sort(_context.LocationTable);
+    public void AnalyzeTypeDependencies()
+    {
+        // not exclude recursive structs from later analyze
+        var result = _structGraph.Sort(_context.LocationTable);
+        if (result == null) return;
+
+        _sortedStructs = result.Value.Sorted;
+        
+        // unused structs, later be excluded from structs
+        _unusedStructs = result.Value.Unused;
+    }
+
+    public void ExcludeUnusedStructs()
+    {
+        if (_unusedStructs == null) return;
+        
+        foreach (var unusedStruct in _unusedStructs)
+            _structs.Remove(unusedStruct.Name);
+    }
     
     private Dictionary<string, VariableUnit>? GetStructFields(string moduleName, string structName)
         => _structs[moduleName][structName].Fields;
@@ -151,15 +156,35 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
         => _structs.TryGetValue(moduleName, out var structs)
            && structs.TryGetValue(structName, out var structUnit) && structUnit.Fields != null;
     
-    private bool IsStructExist(string moduleName, string structName)
+    public bool IsStructExist(string moduleName, string structName)
         => _structs.TryGetValue(moduleName, out var structs) && structs.ContainsKey(structName);
 
     public bool TryGetStruct(string moduleName, string structName, out StructUnit? structUnit)
     {
         structUnit = null;
+        
+        // module not have any structs
         if (!_structs.TryGetValue(moduleName, out var structs)) return false;
 
-        if (!structs.TryGetValue(structName, out var result)) return false;
+        if (!structs.TryGetValue(structName, out var result))
+        {
+            // check in module imports
+            var imports = _context.ModuleTable.GetModuleImports(moduleName);
+            if (imports == null) return false;
+
+            foreach (var import in imports)
+            {
+                // import not have any structs
+                if (!_structs.TryGetValue(import.Name, out var importStructs)) continue;
+
+                // import module not have struct
+                if (!importStructs.TryGetValue(structName, out structUnit)) continue;
+                
+                return true;
+            }
+            
+            return false;
+        }
 
         structUnit = result;
         return true;
@@ -183,12 +208,13 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
             AddStruct(field);
             _values[structUnit].Add(field);
         }
-
-        public List<StructUnit>? Sort(LocationTable table)
+        
+        public (List<StructUnit> Sorted, List<StructUnit>? Unused)? Sort(LocationTable table)
         {
             var visited = new Dictionary<StructUnit, GraphVisitState>();
             var sorted = new List<StructUnit>();
-    
+            var unused = new List<StructUnit>();
+            
             foreach (var structUnit in _values.Keys) visited[structUnit] = GraphVisitState.NotVisited;
             
             foreach (var structUnit in _values.Keys)
@@ -196,8 +222,9 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
                 var location = table.GetLocation(structUnit);
                 
                 if (visited[structUnit] != GraphVisitState.NotVisited) continue;
-                if (Step(structUnit, visited, sorted)) continue;
+                if (Step(table, structUnit, visited, sorted, unused)) continue;
                     
+                // todo move to Step
                 var message = $"Struct '{structUnit.Name}' have recursion field";
                 CompilerLogger.DumpError(CompilerLogCode.StructFieldRecursive, location, message);
                 
@@ -205,10 +232,10 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
             }
             
             // from dependents to independents
-            return sorted; 
+            return (sorted, unused); 
         }
         
-        private bool Step(StructUnit structUnit, Dictionary<StructUnit, GraphVisitState> visited, List<StructUnit> result)
+        private bool Step(LocationTable table, StructUnit structUnit, Dictionary<StructUnit, GraphVisitState> visited, List<StructUnit> result, List<StructUnit> unused)
         {
             switch (visited[structUnit])
             {
@@ -222,10 +249,23 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
             if (_values.TryGetValue(structUnit, out var dependencies))
             {
                 foreach (var dependency in dependencies)
-                    if (!Step(dependency, visited, result)) return false;
+                    if (!Step(table, dependency, visited, result, unused)) return false;
             }
     
             visited[structUnit] = GraphVisitState.Visited;
+            
+            // todo: move from graph (later need check functions for type usage)
+            // unused struct
+            if (_values[structUnit].Count == 0)
+            {
+                var message = $"Type '{structUnit.Name}' not used in code";
+                var location = table.GetLocation(structUnit);
+                CompilerLogger.DumpWarning(CompilerLogCode.TypeUnused, location, message);
+                
+                unused.Add(structUnit);
+                return true;
+            }
+            
             result.Add(structUnit);
             return true;
         }
