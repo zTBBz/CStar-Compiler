@@ -2,6 +2,7 @@ using System.Text;
 
 namespace CStarCompiler.Lexing;
 
+// todo: dump errors with unknown tokens
 public sealed class Lexer
 {
     private string _source = null!;

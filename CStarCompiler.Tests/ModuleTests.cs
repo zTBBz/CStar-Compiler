@@ -184,7 +184,7 @@ module Second;
 
     [Test]
     public void ImportSimpleRecursive()
-        => Tester.AnalyzeWithCode(CompilerLogCode.ModuleImportRecursive, @"
+        => Tester.AnalyzeWithoutErrors(@"
 module First;
 
 use Second;
@@ -196,7 +196,7 @@ use First;
 
     [Test]
     public void ImportDeepRecursive()
-        => Tester.AnalyzeWithCode(CompilerLogCode.ModuleImportRecursive, @"
+        => Tester.AnalyzeWithoutErrors(@"
 module First;
 
 use Second;

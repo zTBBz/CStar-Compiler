@@ -12,16 +12,12 @@ public sealed class SemanticAnalyzer
 {
     private readonly SemanticContext _context = new();
     
-    private string _currentModule = string.Empty;
-    
     public void Analyze(List<ModuleNode> modules)
     {
         
         // collect data
         foreach (var module in modules)
         {
-            CompilerLogger.SetFile(module.Location.File);
-            
             _context.ModuleTable.AddModule(module);
 
             foreach (var declaration in module.Declarations)
@@ -43,7 +39,6 @@ public sealed class SemanticAnalyzer
         
         // analyze modules
         _context.ModuleTable.AnalyzeImports();
-        _context.ModuleTable.AnalyzeDependencies();
         
         // analyze structs
         _context.StructTable.AnalyzeFieldsExisting();
@@ -52,7 +47,6 @@ public sealed class SemanticAnalyzer
     
     public void Clear()
     {
-        _currentModule = string.Empty;
         _context.StructTable.Clear();
         _context.ModuleTable.Clear();
         _context.LocationTable.Clear();

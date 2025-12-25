@@ -19,7 +19,7 @@ struct MyStruct
         
         [Test]
         public void DeclarationBadWithoutName()
-            => Tester.AnalyzeWithoutErrors(@"
+            => Tester.ParseWithError(@"
 module Main;
 
 struct 

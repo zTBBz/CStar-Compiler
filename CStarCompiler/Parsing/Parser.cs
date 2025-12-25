@@ -20,8 +20,6 @@ public sealed class Parser
     {
         _tokens = tokens;
         _current = 0;
-
-        CompilerLogger.SetFile(tokens[0].File);
         
         var module = new ModuleNode(Peek());
         
@@ -616,7 +614,7 @@ public sealed class Parser
 
     private void SynchronizeTo(params TokenType[] skipToThis)
     {
-        while (true)
+        while (!IsAtEnd())
         {
             foreach (var t in skipToThis)
                 if (Check(t)) return;
@@ -627,7 +625,7 @@ public sealed class Parser
     
     private void SynchronizeToDeclarationOrIdentifierWith(params TokenType[] skipToThis)
     {
-        while (true)
+        while (!IsAtEnd())
         {
             if (Check(TokenType.Struct)) return;
             if (Check(TokenType.Identifier)) return;
@@ -641,7 +639,7 @@ public sealed class Parser
     
     private void SynchronizeToDeclarationOrIdentifier()
     {
-        while (true)
+        while (!IsAtEnd())
         {
             if (Check(TokenType.Struct)) return;
             if (Check(TokenType.Identifier)) return;
@@ -670,5 +668,5 @@ public sealed class Parser
         return false;
     }
     
-    private void Error(Token token, string message) => CompilerLogger.DumpError(CompilerLogCode.ParserExpectToken, token, message);
+    private static void Error(Token token, string message) => CompilerLogger.DumpError(CompilerLogCode.ParserExpectToken, token, message);
 }

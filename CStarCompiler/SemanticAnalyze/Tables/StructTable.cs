@@ -27,7 +27,7 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
         else if (structDict.TryGetValue(structUnit.Name, out var originalStruct))
         {
             var originalLocation = _context.LocationTable.GetLocation(originalStruct);
-            var info = $"Original struct at line {originalLocation.Line}, column {originalLocation.Column}";
+            var info = $"Original struct at {CompilerLogger.FormatLocation(originalLocation)}";
             
             CompilerLogger.DumpError(CompilerLogCode.StructDeclarationDuplicate, structNode.Identifier.Location, info);
             
@@ -67,34 +67,33 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
     private void AddField(StructUnit structUnit, FieldDeclarationNode fieldNode)
     {
         structUnit.Fields ??= new();
-        
-        // by now no need to check, it checks later in graph sorting
-        
-        // simple recursive type field
-        /*if (fieldNode.Type.Name == structUnit.Name)
-        {
-            CompilerLogger.DumpError(CompilerLogCode.StructFieldRecursive, fieldNode.Type.Location);
-            return;
-        }*/
 
+        // todo: check for field name shadowing nested structs
+        
         // field name shadow declared struct type
         if (fieldNode.Identifier.Name == structUnit.Name)
         {
-            CompilerLogger.DumpError(CompilerLogCode.StructFieldNameShadowStructType, fieldNode.Identifier.Location);
+            var message = $"Struct field '{fieldNode.Identifier.Name}' shadow struct '{structUnit.Name}'";
+            CompilerLogger.DumpError(CompilerLogCode.StructFieldNameShadowStructType,
+                fieldNode.Identifier.Location, message);
+            
             return;
         }
         
         // field name duplicate
         if (structUnit.Fields.TryGetValue(fieldNode.Identifier.Name, out var originalField))
         {
-            var originalLocation = _context.LocationTable.GetLocation(originalField);
-            var info = $"Original field name at line {originalLocation.Line}, column {originalLocation.Column}";
+            var message = $"Field '{fieldNode.Type.Name} {fieldNode.Identifier.Name}' duplicated in struct '{structUnit.Name}'";
             
-            CompilerLogger.DumpError(CompilerLogCode.StructFieldNameDuplicate, fieldNode.Identifier.Location, info);
+            var originalLocation = _context.LocationTable.GetLocation(originalField);
+            var hint = $"Original field '{originalField.Type.Name} {originalField.Name}' at {CompilerLogger.FormatLocation(originalLocation)}";
+            
+            CompilerLogger.DumpError(CompilerLogCode.StructFieldNameDuplicate,
+                fieldNode.Identifier.Location, message, hint);
             return;
         }
         
-        // todo: add to FieldDeclarationNode modifiers and remove expression initializer
+        // todo: add to FieldDeclarationNode modifiers
         var field = new VariableUnit(fieldNode.Identifier.Name, new(fieldNode.Type.Name, false, false, false));
         
         structUnit.Fields.Add(field.Name, field);
@@ -106,9 +105,6 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
         foreach (var (moduleName, dict) in _structs)
         {
             var module = _context.ModuleTable.GetModule(moduleName);
-            var file = _context.LocationTable.GetLocation(module).File;
-            
-            CompilerLogger.SetFile(file);
             
             foreach (var (_, structUnit) in dict)
             {
@@ -136,7 +132,11 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
                     continue;
                     
                     TypeNotExist:
-                    CompilerLogger.DumpError(CompilerLogCode.TypeNotFound, _context.LocationTable.GetLocation(field));
+                    var message = $"Type '{field.Type.Name}' could not be found";
+                    // todo: analyze modules for similar types and make hint
+                    
+                    CompilerLogger.DumpError(CompilerLogCode.TypeNotFound,
+                        _context.LocationTable.GetLocation(field), message);
                 }
             }
         }
@@ -193,14 +193,14 @@ public sealed class StructTable(SemanticContext context) : ContextTable(context)
             
             foreach (var structUnit in _values.Keys)
             {
-                var moduleLocation = table.GetLocation(structUnit);
+                var location = table.GetLocation(structUnit);
                 
-                CompilerLogger.SetFile(moduleLocation.File);
-
                 if (visited[structUnit] != GraphVisitState.NotVisited) continue;
                 if (Step(structUnit, visited, sorted)) continue;
                     
-                CompilerLogger.DumpError(CompilerLogCode.StructFieldRecursive, moduleLocation);
+                var message = $"Struct '{structUnit.Name}' have recursion field";
+                CompilerLogger.DumpError(CompilerLogCode.StructFieldRecursive, location, message);
+                
                 return null;
             }
             

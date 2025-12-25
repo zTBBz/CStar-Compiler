@@ -48,11 +48,11 @@ public static class Tester
         AssertCode(logCode);
     }
     
-    private static void Parse(string code) => _parser.Parse(_lexer.Tokenize("", code));
+    private static void Parse(string code) => _parser.Parse(_lexer.Tokenize("TEST.cstar", code));
 
     private static void Analyze(string code)
     {
-        var tokens = _lexer.Tokenize("", code);
+        var tokens = _lexer.Tokenize("TEST.cstar", code);
         var ast = _parser.Parse(tokens);
         
         _semanticAnalyzer.Clear();
@@ -65,7 +65,7 @@ public static class Tester
         
         foreach (var code in codes)
         {
-            var tokens = _lexer.Tokenize("", code);
+            var tokens = _lexer.Tokenize("TEST.cstar", code);
 
             var ast = _parser.Parse(tokens);
             

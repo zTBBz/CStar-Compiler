@@ -15,7 +15,7 @@ var fail = false;
 foreach (var file in files)
 {
     var sourceCode = File.ReadAllText(file);
-    var tokens = lexer.Tokenize(file, sourceCode);
+    var tokens = lexer.Tokenize(Path.GetFileName(file), sourceCode);
 
     var module = parser.Parse(tokens);
     

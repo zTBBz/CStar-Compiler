@@ -5,82 +5,59 @@ namespace CStarCompiler.Shared.Logs;
 public static class CompilerLogger
 {
     private static readonly Dictionary<string, List<CompilerLog>> _logDump = [];
-    private static string _currentFile = string.Empty;
     
-    public static void SetFile(string file) => _currentFile = file;
+    public static void DumpInfo(CompilerLogCode compilerLogCode, Token location, string message, string? hint = null)
+        => DumpLog(CompilerLogLevel.Info, location, compilerLogCode, message, hint);
     
-    public static void DumpInfo(CompilerLogCode compilerLogCode, Token location, string? info = null)
-        => DumpLog(CompilerLogLevel.Info, location, compilerLogCode, info);
+    public static void DumpWarning(CompilerLogCode compilerLogCode, Token location, string message, string? hint = null)
+        => DumpLog(CompilerLogLevel.Warning, location, compilerLogCode, message, hint);
     
-    public static void DumpWarning(CompilerLogCode compilerLogCode, Token location, string? info = null)
-        => DumpLog(CompilerLogLevel.Warning, location, compilerLogCode, info);
+    public static void DumpError(CompilerLogCode compilerLogCode, Token location, string message, string? hint = null)
+        => DumpLog(CompilerLogLevel.Error, location, compilerLogCode, message, hint);
     
-    public static void DumpError(CompilerLogCode compilerLogCode, Token location, string? info = null)
-        => DumpLog(CompilerLogLevel.Error, location, compilerLogCode, info);
-    
-    private static void DumpLog(CompilerLogLevel level, Token location, CompilerLogCode compilerLogCode, string? info)
+    private static void DumpLog(CompilerLogLevel level, Token location, CompilerLogCode compilerLogCode, string message, string? hint)
     {
-        var log = new CompilerLog(level, location, GetMessage(compilerLogCode), compilerLogCode, info);
+        var log = new CompilerLog(level, location, message, compilerLogCode, hint);
         
-        if (_logDump.TryGetValue(_currentFile, out var dump)) dump.Add(log);
-        else _logDump.Add(_currentFile, [log]);
+        if (_logDump.TryGetValue(location.File, out var dump)) dump.Add(log);
+        else _logDump.Add(location.File, [log]);
     }
 
-    private static string GetMessage(CompilerLogCode compilerLogCode)
-        => compilerLogCode switch
+    private static string FormatLogMessage(CompilerLog log)
+    {
+        var infoString = log.Hint == null ? "" : $"\n\t{log.Hint}";
+        var logType = log.Level switch 
         {
-            CompilerLogCode.ParserUnknownToken => "Unknown token",
-            CompilerLogCode.ParserExpectToken => "Parser expects token, but get",
-            
-            CompilerLogCode.ModuleImportNotExisted => "Module import not exist",
-            CompilerLogCode.ModuleImportRecursive => "Recursive module imports", // todo: remove
-            CompilerLogCode.ModuleImportDuplicate => "Module import duplicate",
-            CompilerLogCode.ModuleDeclarationDuplicate => "Module declaration duplicate",
-            CompilerLogCode.ModuleImportSelf => "Module import self",
-            
-            CompilerLogCode.TypeNotFound => "Cannot find type declaration",
-            
-            CompilerLogCode.StructDeclarationDuplicate => "Struct declaration duplicate",
-            
-            CompilerLogCode.StructFieldRecursive => "Struct recursive field",
-            CompilerLogCode.StructFieldNameDuplicate => "Field name duplicate",
-            CompilerLogCode.StructFieldNameShadowStructType => "Field name shadow declared struct type",
+            CompilerLogLevel.Info => "INFO",
+            CompilerLogLevel.Warning => "WARNING",
+            CompilerLogLevel.Error => "ERROR",
+            _ => throw new ArgumentOutOfRangeException()
         };
+        
+        return $"[{logType}] {FormatLocation(log.Location)} \n\t{log.Message} {infoString}\n";
+    }
     
+    public static string FormatLocation(Token location)
+        => $"{location.File}:{location.Line}:{location.Column}";
+
     public static void WriteLogs()
     {
         foreach (var pair in _logDump)
         {
-#if DEBUG
-            Console.WriteLine($"File: Debug");
-#else
-            Console.WriteLine($"File: {Path.GetFullPath(pair.Key)}");
-#endif
-            
             // write infos
             var infos = pair.Value.Where(l => l.Level == CompilerLogLevel.Info);
             Console.ForegroundColor = ConsoleColor.DarkCyan;
-            foreach (var info in infos)
-            {
-                var message = $"[INFO]: {info.Message} '{info.Location.Value}' at line {info.Location.Line}, column {info.Location.Column}. {info.Info}";
-                
-                Console.WriteLine(message);
-            }
+            foreach (var info in infos) Console.WriteLine(FormatLogMessage(info));
             
             // write warnings
             var warnings = pair.Value.Where(l => l.Level == CompilerLogLevel.Warning);
             Console.ForegroundColor = ConsoleColor.Yellow;
-            foreach (var warning in warnings) Console.WriteLine(warning.Message);
+            foreach (var warning in warnings) Console.WriteLine(FormatLogMessage(warning));
             
             // write errors
             var errors = pair.Value.Where(l => l.Level == CompilerLogLevel.Error);
             Console.ForegroundColor = ConsoleColor.Red;
-            foreach (var error in errors)
-            {
-                var message = $"[ERROR]: {error.Message} '{error.Location.Value}' at line {error.Location.Line}, column {error.Location.Column}. {error.Info}";
-                
-                Console.WriteLine(message);
-            }
+            foreach (var error in errors) Console.WriteLine(FormatLogMessage(error));
             
             Console.ResetColor();
         }
@@ -105,12 +82,12 @@ public static class CompilerLogger
         => _logDump.SelectMany(p => p.Value)
             .Any(l => l.CompilerLogCode == code && l.Location.Value == locationValue);
     
-    private readonly struct CompilerLog(CompilerLogLevel level, Token location, string message, CompilerLogCode compilerLogCode, string? info = null)
+    private readonly struct CompilerLog(CompilerLogLevel level, Token location, string message, CompilerLogCode compilerLogCode, string? hint = null)
     {
         public readonly CompilerLogCode CompilerLogCode = compilerLogCode;
     
         public readonly string Message = message;
-        public readonly string? Info = info;
+        public readonly string? Hint = hint;
 
         public readonly Token Location = location;
         public readonly CompilerLogLevel Level = level;
