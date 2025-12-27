@@ -2,7 +2,7 @@ namespace CStarCompiler.Shared.Logs;
 
 public enum CompilerLogCode
 {
-    ParserUnknownToken,
+    LexerUnknownToken,
     ParserExpectToken,
     
     ModuleImportNotExisted,

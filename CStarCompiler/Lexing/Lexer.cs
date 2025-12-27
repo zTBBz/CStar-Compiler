@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Text;
+using CStarCompiler.Shared.Logs;
 
 namespace CStarCompiler.Lexing;
 
-// todo: dump errors with unknown tokens
 public sealed class Lexer
 {
     private string _source = null!;
@@ -236,7 +236,10 @@ public sealed class Lexer
                     break;
 
                 default:
-                    AddToken(TokenType.Unknown, current.ToString());
+                    var unknown = new Token(_currentFile, startLine, startCol, TokenType.Unknown, current.ToString());
+                    CompilerLogger.DumpError(CompilerLogCode.LexerUnknownToken, 
+                        unknown, $"Token '{unknown.Value}' not accepted");
+                    
                     Advance();
                     break;
             }
