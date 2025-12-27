@@ -19,6 +19,7 @@ public sealed class Parser
     
     public ModuleNode? Parse(List<Token> tokens)
     {
+        // reset parse state
         _tokens = tokens;
         _current = 0;
         
@@ -396,13 +397,14 @@ public sealed class Parser
         if (Match(TokenType.False)) expr = new LiteralExpressionNode(false, "bool", location);
         else if (Match(TokenType.True)) expr = new LiteralExpressionNode(true, "bool", location);
         else if (Match(TokenType.IntegerLiteral)) expr = new LiteralExpressionNode(int.Parse(location.Value), "int", location);
-        else if (Match(TokenType.FloatLiteral)) expr = new LiteralExpressionNode(float.Parse(location.Value.TrimEnd('f', 'F')), "float", location);
+        else if (Match(TokenType.FloatLiteral)) expr = new LiteralExpressionNode(float.Parse(location.Value.TrimEnd('f')), "float", location);
         else if (Match(TokenType.StringLiteral)) expr = new LiteralExpressionNode(location.Value, "string", location);
         else if (Match(TokenType.CharLiteral)) expr = new LiteralExpressionNode(location.Value, "char", location);
         else if (Match(TokenType.OpenParen))
         {
             expr = ParseExpression();
-            TryConsume(TokenType.CloseParen, "Expect ')'.", out _); // todo: maybe return null
+            if (!TryConsume(TokenType.CloseParen, "Expect ')'.", out _))
+                SynchronizeToDeclarationOrIdentifier();
         }
         // 'this' access
         else if (Match(TokenType.This))
@@ -508,15 +510,18 @@ public sealed class Parser
         
         var block = new BlockStatementNode(location);
 
+        // todo: synchronize troubles - eternity loop
         while (!Check(TokenType.CloseBrace) && !IsAtEnd())
         {
             var statement = ParseStatement();
-            if (statement == null) continue;
+            if (statement == null) break;
             
             block.Statements.Add(statement);
         }
+
+        if (!TryConsume(TokenType.CloseBrace, "Expect '}' at body block end.", out _))
+            SynchronizeToDeclarationOrIdentifier();
         
-        TryConsume(TokenType.CloseBrace, "Expect '}'.", out _);
         return block;
     }
     
@@ -545,14 +550,19 @@ public sealed class Parser
     private VarDeclarationNode? ParseVarDeclaration(IdentifierNode type)
     {
         if (!TryConsume(TokenType.Identifier, "Expect variable name.", out var nameToken))
+        {
+            SynchronizeToExpressionOrFunctionEnd();
             return null;
+        }
         
         var name = new IdentifierNode(nameToken.Value, nameToken);
         
         ExpressionNode? init = null;
         if (Match(TokenType.Assign)) init = ParseExpression();
+
+        if (!TryConsume(TokenType.Semicolon, "Expect ';' after variable declaration.", out _))
+            SynchronizeToExpressionOrFunctionEnd();
         
-        TryConsume(TokenType.Semicolon, "Expect ';' after variable declaration.", out _);
         return new(type, name, type.Location, init);
     }
 
@@ -638,11 +648,32 @@ public sealed class Parser
         }
     }
     
+    private void SynchronizeToExpressionOrFunctionEnd()
+    {
+        while (!IsAtEnd())
+        {
+            if (Check(TokenType.Var)) return;
+            if (Check(TokenType.Identifier)) return;
+            
+            if (Check(TokenType.If)) return;
+            if (Check(TokenType.Else)) return;
+            if (Check(TokenType.Return)) return;
+
+            if (Check(TokenType.This)) return;
+            if (Check(TokenType.Ref)) return;
+            if (Check(TokenType.NoWrite)) return;
+            if (Check(TokenType.CloseBrace)) return;
+            
+            Advance();
+        }
+    }
+    
     private void SynchronizeToDeclarationOrIdentifier()
     {
         while (!IsAtEnd())
         {
             if (Check(TokenType.Struct)) return;
+            if (Check(TokenType.Var)) return;
             if (Check(TokenType.Identifier)) return;
             
             Advance();
