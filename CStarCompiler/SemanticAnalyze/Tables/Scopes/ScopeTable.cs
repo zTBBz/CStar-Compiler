@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace CStarCompiler.SemanticAnalyze.Tables.Scopes;
 
 public sealed class ScopeTable

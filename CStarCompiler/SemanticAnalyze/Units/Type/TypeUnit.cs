@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CStarCompiler.Parsing.Nodes.Modifiers;
 
 namespace CStarCompiler.SemanticAnalyze.Units.Type;

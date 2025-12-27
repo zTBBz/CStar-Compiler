@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CStarCompiler.SemanticAnalyze.Units.Type;
 using CStarCompiler.Shared;
 

@@ -1,4 +1,5 @@
 using CStarCompiler.Shared.Logs;
+using NUnit.Framework;
 
 namespace CStarCompiler.Tests;
 

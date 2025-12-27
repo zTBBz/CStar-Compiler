@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace CStarCompiler.SemanticAnalyze.Units.Module;
 
 public sealed class ModuleUnit(string name) : SemanticUnit

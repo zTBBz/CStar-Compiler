@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CStarCompiler.Lexing;
 using CStarCompiler.Parsing.Nodes.Declarations;
 using CStarCompiler.Parsing.Nodes.Modules;

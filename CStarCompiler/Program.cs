@@ -1,4 +1,7 @@
-﻿using CStarCompiler.Lexing;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using CStarCompiler.Lexing;
 using CStarCompiler.Parsing;
 using CStarCompiler.Parsing.Nodes.Modules;
 using CStarCompiler.SemanticAnalyze;

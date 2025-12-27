@@ -1,8 +1,10 @@
-﻿using CStarCompiler.Lexing;
+﻿using System.Collections.Generic;
+using CStarCompiler.Lexing;
 using CStarCompiler.Parsing;
 using CStarCompiler.Parsing.Nodes.Modules;
 using CStarCompiler.SemanticAnalyze;
 using CStarCompiler.Shared.Logs;
+using NUnit.Framework;
 
 namespace CStarCompiler.Tests;
 

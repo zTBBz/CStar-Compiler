@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CStarCompiler.Lexing;
 using CStarCompiler.SemanticAnalyze.Units;
 
