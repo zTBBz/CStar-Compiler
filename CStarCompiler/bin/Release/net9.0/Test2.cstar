@@ -1,0 +1,17 @@
+module Second;
+
+struct MyStruct
+{
+    NotExistedType Field;
+}
+
+struct MyStructWithFieldNameDuplicate
+{
+    int Field;
+    int Field;
+}
+
+struct int
+{
+
+}
