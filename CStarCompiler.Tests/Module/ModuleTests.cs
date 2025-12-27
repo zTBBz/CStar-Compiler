@@ -1,11 +1,6 @@
-using CStarCompiler.Shared.Logs;
-using NUnit.Framework;
-
-namespace CStarCompiler.Tests;
+namespace CStarCompiler.Tests.Module;
 
 public partial class ModuleTests
 {
-    private partial class Parsing
-    {
-    }
+ 
 }

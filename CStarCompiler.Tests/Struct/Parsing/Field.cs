@@ -1,11 +1,9 @@
-namespace CStarCompiler.Tests;
+namespace CStarCompiler.Tests.Struct.Parsing;
 
 public partial class StructTests
 {
-    private partial class Parsing
-    {
         [Test]
-        public void DeclarationGoodField()
+        public void GoodDeclarationField()
             => Tester.ParseWithoutErrors(@"
 module Main;
 
@@ -16,7 +14,7 @@ struct MyStruct
 ");
 
         [Test]
-        public void DeclarationBadFieldWithoutSemicolon()
+        public void BadDeclarationFieldWithoutSemicolon()
             => Tester.ParseWithError(@"
 module Main;
 
@@ -27,7 +25,7 @@ struct MyStruct
 ");
 
         [Test]
-        public void DeclarationBadFieldWithoutName()
+        public void BadDeclarationFieldWithoutName()
             => Tester.ParseWithError(@"
 module Main;
 
@@ -36,5 +34,4 @@ struct MyStruct
     int 
 }
 ");
-    }
 }

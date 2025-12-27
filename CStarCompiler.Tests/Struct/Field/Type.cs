@@ -1,6 +1,6 @@
 using CStarCompiler.Shared.Logs;
 
-namespace CStarCompiler.Tests;
+namespace CStarCompiler.Tests.Struct.Field;
 
 public partial class StructTests
 {

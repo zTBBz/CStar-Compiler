@@ -1,41 +1,38 @@
-namespace CStarCompiler.Tests;
+namespace CStarCompiler.Tests.Module.Parsing;
 
 public partial class ModuleTests
 {
-    private partial class Parsing
-    {
         [Test]
-        public void ModuleDeclarationBad()
+        public void ModuleBadDeclaration()
             => Tester.ParseWithError("");
 
         [Test]
-        public void ModuleDeclarationBadWithoutName()
+        public void ModuleBadDeclarationWithoutName()
             => Tester.ParseWithError(@"
 module 
 ");
 
         [Test]
-        public void ModuleDeclarationGood()
+        public void ModuleGoodDeclaration()
             => Tester.ParseWithoutErrors(@"
 module Main;
 ");
 
         [Test]
-        public void ModuleDeclarationBadWithoutSemicolon()
+        public void ModuleBadDeclarationWithoutSemicolon()
             => Tester.ParseWithError(@"
 module Main
 ");
 
         [Test]
-        public void ModuleDeclarationGoodWithSubName()
+        public void ModuleGoodDeclarationWithSubName()
             => Tester.ParseWithoutErrors(@"
 module Main.CoolMain;
 ");
 
         [Test]
-        public void ModuleDeclarationBadWithSubNameWithoutSemicolon()
+        public void ModuleBadDeclarationWithSubNameWithoutSemicolon()
             => Tester.ParseWithError(@"
 module Main.CoolMain
 ");
-    }
 }

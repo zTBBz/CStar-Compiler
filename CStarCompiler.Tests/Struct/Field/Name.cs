@@ -1,6 +1,6 @@
 using CStarCompiler.Shared.Logs;
 
-namespace CStarCompiler.Tests;
+namespace CStarCompiler.Tests.Struct.Field;
 
 public partial class StructTests
 {
@@ -34,6 +34,19 @@ struct MyStruct
 struct int
 {
 
+}
+");
+    
+    [Test]
+    public void FieldNameShadowNestedStructType()
+        => Tester.AnalyzeWithCode(CompilerLogCode.StructFieldNameShadowStructType, @"
+module Main;
+
+struct MyStruct
+{
+    int int;
+
+    struct int {}
 }
 ");
 }

@@ -1,11 +1,9 @@
 using CStarCompiler.Shared.Logs;
 
-namespace CStarCompiler.Tests;
+namespace CStarCompiler.Tests.Module.Parsing;
 
 public partial class ModuleTests
 {
-    private partial class Parsing
-    {
         [Test]
         public void SynchronizeModuleDeclarationWithoutSemicolon()
             => Tester.AnalyzeWithCode(CompilerLogCode.StructFieldRecursive, @"
@@ -67,5 +65,4 @@ module Second;
 ", @"
 module Third;
 ");
-    }
 }

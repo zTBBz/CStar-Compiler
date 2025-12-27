@@ -1,9 +1,9 @@
-namespace CStarCompiler.Tests;
+namespace CStarCompiler.Tests.Module;
 
 public partial class ModuleTests
 {
     [Test]
-    public void ModuleEmpty()
+    public static void ModuleEmpty()
         => Tester.AnalyzeWithoutErrors(@"
 module Main;
 ");

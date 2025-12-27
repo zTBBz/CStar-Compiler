@@ -1,11 +1,9 @@
 using CStarCompiler.Shared.Logs;
 
-namespace CStarCompiler.Tests;
+namespace CStarCompiler.Tests.Struct.Parsing;
 
 public partial class StructTests
 {
-    private partial class Parsing
-    {
         [Test]
         public void SynchronizeDeclarationWithoutOpenBrace()
             => Tester.AnalyzeWithCode(CompilerLogCode.StructFieldNameDuplicate, @"
@@ -43,5 +41,4 @@ struct MyStruct
 
 struct int {}
 ");
-    }
 }
