@@ -145,4 +145,92 @@ struct MyStruct7
     MyStruct DeepRecursiveField;
 }
 ");
+    
+    [Test]
+    public void FieldTypePointerNoRecursive()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main;
+
+struct MyStruct
+{
+    MyStruct* Field;
+}
+");
+
+    [Test]
+    public void FieldTypeArrayNoRecursive()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main;
+
+struct MyStruct
+{
+    MyStruct[] Field;
+}
+");
+
+    [Test]
+    public void FieldTypeMultipleFields()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main;
+
+struct int {}
+
+struct MyStruct
+{
+    int Field1;
+    int Field2;
+    int Field3;
+}
+");
+
+    [Test]
+    public void FieldTypeChainWithoutRecursion()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main;
+
+struct A { B Field; }
+struct B { C Field; }
+struct C { D Field; }
+struct D {}
+");
+
+    [Test]
+    public void FieldTypeNestedStructAccess()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main;
+
+struct int {}
+
+struct Outer
+{
+    int Field;
+    
+    struct Inner
+    {
+        int Field;
+    }
+}
+");
+
+    [Test]
+    public void FieldTypeRecursiveByImport()
+        => Tester.AnalyzeWithCode(CompilerLogCode.StructFieldRecursive, @"
+module Main;
+
+use Second;
+
+struct First
+{
+    Second Field;
+}
+", @"
+module Second;
+
+use Main;
+
+struct Second
+{
+    First Field;
+}
+");
 }

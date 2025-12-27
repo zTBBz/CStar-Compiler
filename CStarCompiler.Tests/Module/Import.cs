@@ -68,4 +68,70 @@ module Third;
 
 use First;
 ");
+
+    [Test]
+    public void ImportSubmodule()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main;
+
+use Sub.Module;
+", @"
+module Sub.Module;
+");
+
+    [Test]
+    public void ImportDeepSubmodule()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main;
+
+use Sub.Deep.Module;
+", @"
+module Sub.Deep.Module;
+");
+
+    [Test]
+    public void ImportMultipleModules()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main;
+
+use First;
+use Second;
+use Third;
+", @"
+module First;
+", @"
+module Second;
+", @"
+module Third;
+");
+
+    [Test]
+    public void ImportGlobalModifier()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main;
+
+global use Second;
+", @"
+module Second;
+");
+
+    [Test]
+    public void ImportPublicModifier()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main;
+
+public use Second;
+", @"
+module Second;
+");
+
+    [Test]
+    public void ImportGlobalPublicModifier()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main;
+
+global public use Second;
+", @"
+module Second;
+");
 }

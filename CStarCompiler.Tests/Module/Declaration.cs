@@ -7,4 +7,16 @@ public partial class ModuleTests
         => Tester.AnalyzeWithoutErrors(@"
 module Main;
 ");
+
+    [Test]
+    public static void ModuleWithSubname()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main.Sub;
+");
+
+    [Test]
+    public static void ModuleWithDeepSubname()
+        => Tester.AnalyzeWithoutErrors(@"
+module Main.Sub.Deep.Module;
+");
 }

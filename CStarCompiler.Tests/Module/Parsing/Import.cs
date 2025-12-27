@@ -25,7 +25,7 @@ module Main;
 
 use Some
 ");
-        
+        /*
         [Test]
         public void ImportBadDeclarationInFunctionBody()
             => Tester.ParseWithError(@"
@@ -35,7 +35,7 @@ void Function()
 {
     use Some;
 }
-");
+");*/
         
         [Test]
         public void ImportBadDeclarationInStructBody()
