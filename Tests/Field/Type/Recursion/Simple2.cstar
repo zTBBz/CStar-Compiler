@@ -1,0 +1,8 @@
+module Main;
+
+struct A { B b; }
+//         ^ StructFieldRecursive
+
+struct B { A a; } 
+
+struct C { A a; } 

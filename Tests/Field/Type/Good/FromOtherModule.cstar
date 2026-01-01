@@ -1,0 +1,17 @@
+module Main;
+
+use Second;
+
+struct MyStruct
+{
+    MyStruct2 Field;
+}
+
+// FILE
+
+module Second;
+
+struct MyStruct2
+{
+
+}

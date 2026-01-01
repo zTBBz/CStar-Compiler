@@ -1,0 +1,14 @@
+module Main;
+
+struct int {}
+
+struct Outer
+{
+    int Field;
+    Inner InnerField;
+
+    struct Inner
+    {
+        int Field;
+    }
+}

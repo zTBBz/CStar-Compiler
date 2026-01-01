@@ -1,0 +1,12 @@
+module Main;
+
+struct MyStruct
+{
+
+}
+
+struct MyStruct
+//     ^^^^^^^^ StructDeclarationDuplicate
+{
+
+}

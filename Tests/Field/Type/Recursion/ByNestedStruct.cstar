@@ -1,0 +1,12 @@
+module Main;
+
+struct MyStruct
+{
+    NestedStruct Field;
+//  ^^^^^^^^^^^^ StructFieldRecursive
+
+    struct NestedStruct
+    {
+        MyStruct RecursiveField;
+    }
+}

@@ -1,0 +1,19 @@
+module Main;
+
+use Second;
+
+struct First
+{
+    Second Field;
+//  ^^^^^^ StructFieldRecursive
+}
+
+// FILE
+module Second;
+
+use Main;
+
+struct Second
+{
+    First Field;
+}

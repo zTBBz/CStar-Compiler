@@ -1,0 +1,10 @@
+module Main;
+
+struct Outer
+{
+    Inner1 Field1;
+    Inner2 Field2;
+
+    struct Inner1 {}
+    struct Inner2 {}
+}

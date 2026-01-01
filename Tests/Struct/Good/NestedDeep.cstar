@@ -1,0 +1,13 @@
+module Main;
+
+struct Level1
+{
+    Level2 Field;
+
+    struct Level2
+    {
+        Level3 Field;
+
+        struct Level3 {}
+    }
+}

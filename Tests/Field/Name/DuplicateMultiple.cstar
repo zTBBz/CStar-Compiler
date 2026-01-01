@@ -1,0 +1,12 @@
+module Main;
+
+struct int {}
+
+struct MyStruct
+{
+    int Field;
+    int Field;
+    //  ^^^^^ StructFieldNameDuplicate 
+    int Field;
+    //  ^^^^^ StructFieldNameDuplicate 
+}

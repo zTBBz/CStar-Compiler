@@ -1,0 +1,3 @@
+module Main;
+
+int Function() => 10;

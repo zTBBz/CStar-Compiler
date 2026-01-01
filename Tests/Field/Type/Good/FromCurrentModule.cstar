@@ -1,0 +1,11 @@
+module Main;
+
+struct MyStruct
+{
+    MyStruct2 Field;
+}
+
+struct MyStruct2
+{
+    
+}

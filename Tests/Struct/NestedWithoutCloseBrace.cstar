@@ -1,0 +1,10 @@
+// ParserExpectToken
+
+module Main;
+
+struct Outer
+{
+	struct Inner
+	{
+		
+}

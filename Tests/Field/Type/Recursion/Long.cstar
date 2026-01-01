@@ -1,0 +1,37 @@
+module Main;
+
+struct MyStruct
+{
+    MyStruct2 Field;
+//  ^^^^^^^^^ StructFieldRecursive
+}
+
+struct MyStruct2
+{
+    MyStruct3 DeepRecursiveField;
+}
+
+struct MyStruct3
+{
+    MyStruct4 DeepRecursiveField;
+}
+
+struct MyStruct4
+{
+    MyStruct5 DeepRecursiveField;
+}
+
+struct MyStruct5
+{
+    MyStruct6 DeepRecursiveField;
+}
+
+struct MyStruct6
+{
+    MyStruct7 DeepRecursiveField;
+}
+
+struct MyStruct7
+{
+    MyStruct DeepRecursiveField;
+}

@@ -1,0 +1,5 @@
+module First;
+
+use Second;
+use Second;
+//  ^^^^^^ ModuleImportDuplicate

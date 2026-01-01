@@ -1,0 +1,9 @@
+module Main;
+
+struct MyStruct
+{
+    int int;
+    //  ^^^ StructFieldNameShadowStructType
+
+    struct int {}
+}

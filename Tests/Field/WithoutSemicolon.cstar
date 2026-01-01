@@ -1,0 +1,7 @@
+module Main;
+
+    struct MyStruct
+    {
+        int Field
+    }
+//  ^ ParserExpectToken

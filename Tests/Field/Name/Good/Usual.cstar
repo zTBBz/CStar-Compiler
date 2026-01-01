@@ -1,0 +1,10 @@
+module Main;
+
+struct int {}
+
+struct MyStruct
+{
+    int Field1;
+    int Field2;
+    int Field3;
+}

@@ -1,0 +1,6 @@
+module Main;
+
+struct A { B Field; }
+struct B { C Field; }
+struct C { D Field; }
+struct D {}

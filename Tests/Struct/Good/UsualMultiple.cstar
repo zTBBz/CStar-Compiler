@@ -1,0 +1,19 @@
+module Main;
+
+struct int {}
+
+struct First
+{
+    int Field;
+}
+
+struct Second
+{
+    int Field;
+}
+
+struct Third
+{
+    First Field1;
+    Second Field2;
+}
