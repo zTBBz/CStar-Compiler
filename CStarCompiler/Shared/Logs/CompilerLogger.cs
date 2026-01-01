@@ -39,7 +39,7 @@ public static class CompilerLogger
 
     private static string FormatLogMessage(CompilerLog log)
     {
-        var infoString = log.Hint == null ? "" : $"\n\t{log.Hint}";
+        var infoString = log.Hint == null ? string.Empty : $"\n\t{log.Hint}";
         var logType = log.Level switch 
         {
             CompilerLogLevel.Info => "INFO",
@@ -75,6 +75,29 @@ public static class CompilerLogger
             
             Console.ResetColor();
         }
+    }
+    
+    public static void WriteLogsWithClear()
+    {
+        foreach (var pair in _logDump)
+        {
+            // write infos
+            var infos = pair.Value.Where(l => l.Level == CompilerLogLevel.Info);
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            foreach (var info in infos) Console.WriteLine(FormatLogMessage(info));
+            
+            // write warnings
+            var warnings = pair.Value.Where(l => l.Level == CompilerLogLevel.Warning);
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            foreach (var warning in warnings) Console.WriteLine(FormatLogMessage(warning));
+            
+            // write errors
+            var errors = pair.Value.Where(l => l.Level == CompilerLogLevel.Error);
+            Console.ForegroundColor = ConsoleColor.Red;
+            foreach (var error in errors) Console.WriteLine(FormatLogMessage(error));
+            
+            Console.ResetColor();
+        }
         
         _logDump.Clear();
     }
@@ -82,12 +105,22 @@ public static class CompilerLogger
     public static void Clear() => _logDump.Clear();
     
     // functions for tests
-    public static bool HaveLogs()
-        => _logDump.Any(p => p.Value.Count != 0);
 
     public static bool HaveErrors()
         => _logDump.Select(l => l.Value)
             .Any(v => v.Any(l => l.Level ==  CompilerLogLevel.Error));
+
+    public static bool HaveErrors(string file) 
+        => _logDump.TryGetValue(file, out var logs) 
+           && logs.Any(l => l.Level == CompilerLogLevel.Error);
+    
+    public static bool HaveLogCode(string file, CompilerLogCode code)
+        => _logDump.TryGetValue(file, out var logs)
+           && logs.Any(l => l.CompilerLogCode == code);
+    
+    public static bool HaveLogCode(string file, int line, int column, CompilerLogCode code)
+        => _logDump.TryGetValue(file, out var logs)
+           && logs.Any(l => l.CompilerLogCode == code && l.Location.Line == line && l.Location.Column == column);
     
     public static bool HaveLogCode(CompilerLogCode code)
         => _logDump.SelectMany(p => p.Value).Any(l => l.CompilerLogCode == code);
