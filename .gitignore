@@ -3,9 +3,6 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
-# allow .cstar files
-!**/*.cstar
-
 # User-specific files
 *.rsuser
 *.suo
@@ -358,6 +355,9 @@ MigrationBackup/
 
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio and WebStorm
 # Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
+
+# Idea garbage
+.idea/*
 
 # User-specific stuff
 .idea/**/workspace.xml
