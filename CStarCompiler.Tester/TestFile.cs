@@ -1,12 +1,11 @@
 namespace CStarCompiler.Tester;
 
-public readonly struct TestFile(string fileName)
+public readonly struct TestFile(string testFileName)
 {
-    public readonly string FileName = fileName;
+    public readonly string TestFileName = testFileName;
     
-    private readonly Dictionary<string, List<TestAssert>> _asserts = [];
+    public List<(string FileName, string SourceCode, List<TestAssert> Asserts)> SubFiles { get; } = [];
 
-    public void AddAsserts(string testFileName, List<TestAssert> asserts) => _asserts[testFileName] = asserts;
-
-    public List<TestAssert> GetAsserts(string testFileName) => _asserts[testFileName];
+    public void AddTestSubFile(string subFileName, string sourceCode, List<TestAssert> asserts)
+        => SubFiles.Add((subFileName, sourceCode, asserts));
 }

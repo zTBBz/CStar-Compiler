@@ -1,5 +1,6 @@
 ﻿using CStarCompiler.Lexing;
 using CStarCompiler.Parsing;
+using CStarCompiler.Parsing.Nodes.Modules;
 using CStarCompiler.SemanticAnalyze;
 using CStarCompiler.Shared.Logs;
 using CStarCompiler.Tester;
@@ -12,149 +13,131 @@ var lexer = new Lexer();
 var parser = new Parser();
 var semanticAnalyzer = new SemanticAnalyzer();
 
-// todo: add many modules in one file by 'FILE' directive
-
 var preprocessor = new TestPreprocessor();
-
-var totalCount = 0;
-var totalFailedCount = 0;
-var totalOkCount = 0;
 
 foreach (var file in files)
 {
     var source = File.ReadAllText(file);
     var fileName = Path.GetRelativePath(directory, file);
-    
-    var tokens = lexer.Tokenize(fileName, source);
-    var module = parser.Parse(tokens);
 
-    if (module != null)
+    var testFile = preprocessor.Process(fileName, source);
+    
+    // no sub files
+    if (testFile.SubFiles.Count == 1)
     {
-        semanticAnalyzer.Clear();
-        semanticAnalyzer.Analyze([module]);
-    }
-    
-    var asserts = preprocessor.Process(file, source);
-    
-    totalCount += 1;
-    
-    string status;
-
-    switch (asserts.Count)
-    {
-        // expect no logs
-        case 0:
-        {
-            var failed = false;
-            
-            if (CompilerLogger.HaveErrors(fileName))
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                status = "[FAIL]";
-                totalFailedCount += 1;
-                failed = true;
-            }
-            else
-            {
-                Console.ForegroundColor = ConsoleColor.Green;
-                status = "[OK]";
-                totalOkCount += 1;
-            }
-
-            Console.Write(status);
-            Console.ResetColor();
-            Console.WriteLine($" [NoErrors] {fileName}");
-            
-            if (failed) CompilerLogger.WriteLogs();
-
-            break;
-        }
+        var (subFileName, sourceCode, asserts) = testFile.SubFiles[0];
         
-        // expect one log
-        case 1:
-        {
-            var assert = asserts[0];
-            var failed = false;
-            
-            if (AssertTest(fileName, assert))
-            {
-                Console.ForegroundColor = ConsoleColor.Green;
-                status = "[OK]";
-                totalOkCount += 1;
-            }
-            else
-            {                
-                Console.ForegroundColor = ConsoleColor.Red;
-                status = "[FAIL]";
-                totalFailedCount += 1;
-                failed = true;
-            }
+        var tokens = lexer.Tokenize(subFileName, sourceCode);
+        var module = parser.Parse(tokens);
 
-            Console.Write(status);
-            Console.ResetColor();
+        var modules = new List<ModuleNode>();
+        if (module != null) modules.Add(module);
 
-            Console.WriteLine(assert.NoLocationAssert
-                ? $" [{assert.ExpectedLogCode}] {fileName}"
-                : $" [{assert.ExpectedLogCode}] {fileName}:{assert.Line}:{assert.Column}");
-            
-            if (failed) CompilerLogger.WriteLogs();
-
-            break;
-        }
+        semanticAnalyzer.Analyze(modules);
         
-        // expect logs
-        default:
+        // assert and write logs
+        bool status;
+        
+        switch (asserts.Count)
         {
-            Console.ForegroundColor = ConsoleColor.Cyan;
-
-            Console.WriteLine($"[TOTAL {asserts.Count}] {fileName}");
-
-            var failed = false;
+            // expect no logs
+            case 0:
+                status = !CompilerLogger.HaveErrors(subFileName);
+                TestLogger.WriteNoErrors(status, subFileName);
+                break;
             
-            foreach (var assert in asserts)
+            // expect one log
+            case 1:
             {
-                if (AssertTest(fileName, assert))
-                {
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    status = "\t[OK]";
-                }
-                else
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    status = "\t[FAIL]";
-                    failed = true;
-                }
-
-                Console.Write(status);
-                Console.ResetColor();
+                var assert = asserts[0];
                 
-                Console.WriteLine(assert.NoLocationAssert
-                    ? $" [{assert.ExpectedLogCode}]"
-                    : $" [{assert.ExpectedLogCode}] {assert.Line}:{assert.Column}");
-                
-                if (failed) CompilerLogger.WriteLogs();
+                status = assert.AssertHaveLog(subFileName);
+                TestLogger.WriteSingle(status, subFileName, assert);
+                break;
             }
             
-            _ = failed ? totalFailedCount += 1 : totalOkCount += 1;
-
-            break;
+            // expect many logs
+            default:
+                var statusAsserts = new List<(bool, TestAssert)>();
+                
+                foreach (var assert in asserts)
+                {
+                    status = assert.AssertHaveLog(subFileName);
+                    statusAsserts.Add((status, assert));
+                }
+                
+                TestLogger.WriteMany(subFileName, statusAsserts);
+                break;
         }
     }
+    // with sub files
+    else
+    {
+        foreach (var (subFileName, sourceCode, _) in testFile.SubFiles)
+        {
+            var tokens = lexer.Tokenize(subFileName, sourceCode);
+            var module = parser.Parse(tokens);
+
+            var modules = new List<ModuleNode>();
+            if (module != null) modules.Add(module);
+
+            semanticAnalyzer.Analyze(modules);
+        }
+        
+        Console.ForegroundColor = ConsoleColor.Blue;
+        Console.Write($"[SUB FILES] [TOTAL {testFile.SubFiles.Count}] ");
+            
+        Console.ResetColor();
+        Console.WriteLine($"{testFile.TestFileName}");
+
+        // assert and write logs 
+        foreach (var (subFileName, _, asserts) in testFile.SubFiles)
+        {
+            bool status;
+        
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.Write("\t[SUBFILE] ");
+            
+            Console.ResetColor();
+            Console.WriteLine($"{subFileName}");
+            
+            switch (asserts.Count)
+            {
+                // expect no logs
+                case 0:
+                    status = !CompilerLogger.HaveErrors(subFileName);
+                    
+                    TestLogger.WriteNoErrors(status, subFileName, "\t\t");
+                    break;
+            
+                // expect one log
+                case 1:
+                {
+                    var assert = asserts[0];
+                    status = assert.AssertHaveLog(subFileName);
+                    
+                    TestLogger.WriteSingle(status, subFileName, assert, "\t\t");
+                    break;
+                }
+            
+                // expect many logs
+                default:
+                    var statusAsserts = new List<(bool, TestAssert)>();
+                
+                    foreach (var assert in asserts)
+                    {
+                        status = assert.AssertHaveLog(subFileName);
+                        statusAsserts.Add((status, assert));
+                    }
+                
+                    TestLogger.WriteMany(subFileName, statusAsserts, "\t\t");
+                    break;
+            }
+        }
+    }
     
+    semanticAnalyzer.Clear();
     CompilerLogger.Clear();
 }
 
-Console.ForegroundColor = ConsoleColor.Blue;
-
-Console.WriteLine();
-Console.WriteLine($"Ok: {totalOkCount}");
-Console.WriteLine($"Failed: {totalFailedCount}");
-Console.WriteLine($"Total: {totalCount}");
-
-Console.ResetColor();
 Console.ReadLine();
-
-bool AssertTest(string fileName, TestAssert assert)
-    => assert.NoLocationAssert ?
-        CompilerLogger.HaveLogCode(fileName, assert.ExpectedLogCode) 
-        : CompilerLogger.HaveLogCode(fileName, assert.Line, assert.Column, assert.ExpectedLogCode);

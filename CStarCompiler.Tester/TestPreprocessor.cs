@@ -5,33 +5,78 @@ namespace CStarCompiler.Tester;
 
 public sealed class TestPreprocessor
 {
-    private string _fileName = null!;
-    
     private string _sourceCode = string.Empty;
     private int _position;
     private int _line;
     private int _column;
     
-    public List<TestAssert> Process(string fileName, string sourceCode)
+    public TestFile Process(string testFileName, string testSourceCode)
     {
-        _fileName = fileName;
-        _sourceCode = sourceCode;
-        _position = 0;
-        _line = 1;
-        _column = 1;
+        _sourceCode = testSourceCode;
+        Reset();
 
-        var testAsserts = new List<TestAssert>();
+        var testFile = new TestFile(testFileName);
+        var subFiles = ParseSubFiles();
 
+        // no sub files
+        if (subFiles.Count == 0)
+        {
+            var asserts = GetSubFileAsserts(testFileName, testSourceCode);
+            testFile.AddTestSubFile(testFileName, testSourceCode, asserts);
+        }
+        else
+        {
+            foreach (var (fileName, sourceCode) in subFiles)
+            {
+                var asserts = GetSubFileAsserts(fileName, sourceCode);
+                testFile.AddTestSubFile(fileName, sourceCode, asserts);
+            }
+        }
+
+        return testFile;
+    }
+    
+    private List<(string FileName, string SourceCode)> ParseSubFiles()
+    {
+        var result = new List<(string FileName, string SourceCode)>();
+        
         while (_position < _sourceCode.Length)
+        {
+            if (!TryFindSubFile())
+                break;
+
+            var fileName = ParseStringOnLine();
+            if (string.IsNullOrEmpty(fileName))
+                continue;
+
+            SkipToNextLine();
+
+            var codeStart = _position;
+            var codeEnd = FindNextSubFileOrEnd();
+
+            var code = _sourceCode.Substring(codeStart, codeEnd - codeStart).TrimEnd();
+            result.Add((fileName, code));
+        }
+
+        return result;
+    }
+    
+    private List<TestAssert> GetSubFileAsserts(string subFileName, string sourceCode)
+    {
+        _sourceCode = sourceCode;
+        Reset();
+
+        var asserts = new List<TestAssert>();
+        
+        while (_position < sourceCode.Length)
         {
             if (Current() == '/' && Next() == '/')
             {
+                // consume '//'
                 Advance();
                 Advance();
 
-                // skip whitespaces
-                while (char.IsWhiteSpace(Current()))
-                    Advance();
+                SkipWhitespacesAndTabs();
                 
                 while (Current() != '\n' && Current() != '\0')
                 {
@@ -42,10 +87,11 @@ public sealed class TestPreprocessor
                         
                         var parsedString = ParseStringOnLine();
                         
-                        if (!TryParseLogCode(parsedString, strColumnStart, out var logCode))
+                        if (!TryParseLogCode(subFileName, parsedString, strColumnStart, out var logCode))
                             continue;
-                        
-                        testAsserts.Add(new(true, -1, -1, logCode));
+
+                        var assert = new TestAssert(true, -1, -1, logCode);
+                        asserts.Add(assert);
                     }
                     
                     // log code with location
@@ -62,10 +108,11 @@ public sealed class TestPreprocessor
 
                         var codeString = ParseStringOnLine();
 
-                        if (!TryParseLogCode(codeString, logCodeStartColumn, out var logCode))
+                        if (!TryParseLogCode(subFileName, codeString, logCodeStartColumn, out var logCode))
                             continue;
-                        
-                        testAsserts.Add(new(false, assertLine, assertColumn, logCode));
+
+                        var assert = new TestAssert(false, assertLine, assertColumn, logCode);
+                        asserts.Add(assert);
                     }
 
                     Advance();
@@ -75,9 +122,67 @@ public sealed class TestPreprocessor
             Advance();
         }
 
-        return testAsserts;
+        return asserts;
     }
+    
+    private int FindNextSubFileOrEnd()
+    {
+        var savedPos = _position;
+        var savedLine = _line;
+        var savedColumn = _column;
 
+        while (_position < _sourceCode.Length)
+        {
+            if (Current() == '/' && Next() == '/')
+            {
+                var markerStart = _position;
+                Advance();
+                Advance();
+                SkipWhitespacesAndTabs();
+
+                if (Current() != '$') continue;
+                
+                _position = savedPos;
+                _line = savedLine;
+                _column = savedColumn;
+                return markerStart;
+            }
+            
+            Advance();
+        }
+
+        var endPos = _position;
+        _position = savedPos;
+        _line = savedLine;
+        _column = savedColumn;
+        return endPos;
+    }
+    
+    private bool TryFindSubFile()
+    {
+        while (_position < _sourceCode.Length)
+        {
+            if (Current() == '/' && Next() == '/')
+            {
+                // consume '//'
+                Advance(); 
+                Advance();
+                
+                SkipWhitespacesAndTabs();
+
+                if (Current() != '$') continue;
+                
+                // consume '$'
+                Advance();
+                return true;
+            }
+            
+            Advance();
+        }
+        
+        return false;
+    }
+    
     private string ParseStringOnLine()
     {
         var sb = new StringBuilder();
@@ -91,19 +196,33 @@ public sealed class TestPreprocessor
         return sb.ToString();
     }
     
-    private bool TryParseLogCode(string logCodeString, int logCodeStartColumn, out CompilerLogCode logCode)
+    private bool TryParseLogCode(string subFileName, string logCodeString, int logCodeStartColumn, out CompilerLogCode logCode)
     {
         if (string.IsNullOrEmpty(logCodeString))
         {
-            Console.WriteLine($"Expect CompilerLogCode at {_fileName} {_line}:{logCodeStartColumn}, but get '{Current()}'");
+            Console.WriteLine($"Expect CompilerLogCode at {subFileName} {_line}:{logCodeStartColumn}, but get '{Current()}'");
             logCode = CompilerLogCode.LexerUnknownToken;
             return false;
         }
 
         if (Enum.TryParse(logCodeString, out logCode)) return true;
         
-        Console.WriteLine($"'{logCodeString}' is not existed CompilerLogCode at {_fileName} {_line}:{logCodeStartColumn}");
+        Console.WriteLine($"'{logCodeString}' is not existed CompilerLogCode at {subFileName} {_line}:{logCodeStartColumn}");
         return false;
+    }
+    
+    private void SkipToNextLine()
+    {
+        while (Current() != '\n' && Current() != '\0')
+            Advance();
+        
+        if (Current() == '\n') Advance();
+    }
+    
+    private void SkipWhitespacesAndTabs()
+    {
+        while (char.IsWhiteSpace(Current()) || Current() == '\t')
+            Advance();
     }
     
     private char Current() => _position >= _sourceCode.Length ? '\0' : _sourceCode[_position];
@@ -122,5 +241,12 @@ public sealed class TestPreprocessor
         else _column++;
 
         _position++;
+    }
+    
+    private void Reset()
+    {
+        _position = 0;
+        _line = 1;
+        _column = 1;
     }
 }

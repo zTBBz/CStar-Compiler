@@ -10,4 +10,8 @@ public readonly struct TestAssert(bool noLocation, int line, int column, Compile
     public readonly int Column = column;
 
     public readonly CompilerLogCode ExpectedLogCode = expectedLogCode;
+
+    public bool AssertHaveLog(string fileName) => NoLocationAssert ?
+            CompilerLogger.HaveLogCode(fileName, ExpectedLogCode) 
+            : CompilerLogger.HaveLogCode(fileName, Line, Column, ExpectedLogCode);
 }
