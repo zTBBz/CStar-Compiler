@@ -1,0 +1,17 @@
+// StructFieldRecursive
+
+module Main;
+
+struct int {}
+
+struct Bad1
+
+struct Bad2
+{
+    int Field
+
+
+struct MyStruct
+{
+    MyStruct Field;
+}

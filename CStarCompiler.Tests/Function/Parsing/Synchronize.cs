@@ -2,7 +2,6 @@ using CStarCompiler.Shared.Logs;
 
 namespace CStarCompiler.Tests.Function.Parsing;
 
-// todo: add more tests for function parsing synchronization after adding body analyze
 public partial class FunctionTests
 {
     [Test]

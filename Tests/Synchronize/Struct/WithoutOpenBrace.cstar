@@ -1,0 +1,16 @@
+// StructFieldNameDuplicate
+
+module Main;
+
+struct BadStruct
+
+    BadStruct Field;
+}
+
+struct MyStruct
+{
+    int Field; 
+    int Field; 
+}
+
+struct int {}
