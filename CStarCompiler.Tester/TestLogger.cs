@@ -17,7 +17,7 @@ public static class TestLogger
         foreach (var (status, assert) in asserts)
         {
             if (prefix != null) Console.Write(prefix);
-            WriteSingle(status, fileName, assert, "\t");
+            WriteSingle(status, string.Empty, assert, "\t");
         }
     }
     

@@ -73,16 +73,17 @@ foreach (var file in files)
     // with sub files
     else
     {
+        var modules = new List<ModuleNode>();
+        
         foreach (var (subFileName, sourceCode, _) in testFile.SubFiles)
         {
             var tokens = lexer.Tokenize(subFileName, sourceCode);
             var module = parser.Parse(tokens);
 
-            var modules = new List<ModuleNode>();
             if (module != null) modules.Add(module);
-
-            semanticAnalyzer.Analyze(modules);
         }
+        
+        semanticAnalyzer.Analyze(modules);
         
         Console.ForegroundColor = ConsoleColor.Blue;
         Console.Write($"[SUB FILES] [TOTAL {testFile.SubFiles.Count}] ");

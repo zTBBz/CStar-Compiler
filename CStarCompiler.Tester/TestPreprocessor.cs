@@ -10,6 +10,8 @@ public sealed class TestPreprocessor
     private int _line;
     private int _column;
     
+    // todo: add as prefix '~' for no location log assert
+    
     public TestFile Process(string testFileName, string testSourceCode)
     {
         _sourceCode = testSourceCode;
