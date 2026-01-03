@@ -1,5 +1,3 @@
-// StructFieldRecursive
-
 module Main;
 
 struct int {}
@@ -9,7 +7,9 @@ struct BadStruct
     public public int Field;
 }
 
-struct MyStruct09433
+struct MyStruct
 {
     MyStruct Field;
 }
+
+// StructFieldRecursive

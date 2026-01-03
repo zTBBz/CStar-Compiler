@@ -1,0 +1,8 @@
+// $First
+module Main;
+
+global public use Second;
+//     ^^^^^^ LogNotExistNow
+
+// $Second
+module Second;

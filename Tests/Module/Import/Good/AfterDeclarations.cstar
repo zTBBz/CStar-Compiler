@@ -1,0 +1,11 @@
+// $First
+module Main;
+
+struct int {}
+
+void Some();
+
+use Some;
+
+// $Second
+module Some;

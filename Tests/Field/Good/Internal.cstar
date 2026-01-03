@@ -4,3 +4,5 @@ struct MyStruct
 {
     internal int Field;
 }
+
+struct int { }

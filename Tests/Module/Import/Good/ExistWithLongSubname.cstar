@@ -1,0 +1,7 @@
+// $First
+module Main;
+
+use Main.Sub.Deep.Module;
+
+// $Second
+module Main.Sub.Deep.Module;

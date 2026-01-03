@@ -4,3 +4,5 @@ struct MyStruct
 {
     nowrite int Field;
 }
+
+struct int { }

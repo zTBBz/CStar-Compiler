@@ -1,17 +1,14 @@
 // $First
+
 module Main;
 
 use Second;
-
-struct MyStruct
-{
-    MyStruct2 Field;
-}
+use Third;
 
 // $Second
+
 module Second;
 
-struct MyStruct2
-{
+// $Third
 
-}
+module Third;

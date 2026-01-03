@@ -1,3 +1,4 @@
+// $First
 module Main;
 
 use Second;
@@ -8,7 +9,7 @@ struct First
 //  ^^^^^^ StructFieldRecursive
 }
 
-// FILE
+// $Second
 module Second;
 
 use Main;

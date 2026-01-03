@@ -1,0 +1,19 @@
+// $First
+module Main;
+
+use Second
+// ParserExpectToken
+
+use Third;
+//  ^^^^^ ModuleImportNotExisted
+
+struct MyStruct
+{
+    MyStruct Field; 
+}
+
+// StructFieldRecursive
+
+// $Second
+
+module Second;

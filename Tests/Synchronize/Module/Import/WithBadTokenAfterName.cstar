@@ -1,0 +1,11 @@
+module Main;
+
+use Second +
+//         ^ ParserExpectToken
+
+struct MyStruct
+{
+    MyStruct Field; 
+}
+
+// StructFieldRecursive

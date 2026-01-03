@@ -1,0 +1,10 @@
+module Main.;
+
+// ParserExpectToken
+
+struct MyStruct
+{
+    MyStruct Field; 
+}
+
+// StructFieldRecursive

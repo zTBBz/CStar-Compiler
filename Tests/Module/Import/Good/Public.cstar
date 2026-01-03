@@ -1,0 +1,9 @@
+// $First
+
+module Main;
+
+public use Second;
+
+// $Second
+
+module Second;
